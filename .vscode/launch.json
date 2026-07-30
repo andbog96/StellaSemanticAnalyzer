@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:StellaTypeChecker}",
+            "name": "Debug StellaTypeChecker",
+            "target": "StellaTypeChecker",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug StellaTypeChecker"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:StellaTypeChecker}",
+            "name": "Release StellaTypeChecker",
+            "target": "StellaTypeChecker",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release StellaTypeChecker"
+        }
+    ]
+}
