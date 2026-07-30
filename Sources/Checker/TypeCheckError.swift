@@ -32,7 +32,8 @@ enum TypeCheckError: Error {
     case ambiguosList(in: Expression)
 
     case illegalEmptyMatch(in: Expression)
-    case nonexhaustiveMatchPatterns(for: CanonicalType, in: Expression)
+    case nonexhaustiveLetPatterns(for: Expression, notMatchedPatterns: [Pattern])
+    case nonexhaustiveMatchPatterns(for: Expression, notMatchedPatterns: [Pattern])
     case duplicateRecordFields([Name], in: Expression)
     case duplicateFunctionDeclaration(Name)
 
@@ -93,6 +94,7 @@ extension TypeCheckError {
         case .ambiguosVariantType: "ERROR_AMBIGUOUS_VARIANT_TYPE"
         case .ambiguosList: "ERROR_AMBIGUOUS_LIST"
         case .illegalEmptyMatch: "ERROR_ILLEGAL_EMPTY_MATCHING"
+        case .nonexhaustiveLetPatterns: "ERROR_NONEXHAUSTIVE_LET_PATTERNS"
         case .nonexhaustiveMatchPatterns: "ERROR_NONEXHAUSTIVE_MATCH_PATTERNS"
         case .duplicateRecordFields: "ERROR_DUPLICATE_RECORD_FIELDS"
         case .duplicateFunctionDeclaration: "ERROR_DUPLICATE_FUNCTION_DECLARATION"
@@ -256,10 +258,21 @@ extension TypeCheckError {
             """
             Cannot infer the other half of the sum type expression: \(expression)
             """
-        case let .nonexhaustiveMatchPatterns(type, in: expression):
+        case .nonexhaustiveLetPatterns(let expression, let patterns):
             """
-            Not all cases of type: \(type)
-            Are covered by: \(expression)
+            non-exhaustive pattern matches
+            when matching on expression
+            \(expression)
+            at least the following patterns are not matched:
+            \(patterns.map(String.init).joined(separator: "\n"))
+            """
+        case .nonexhaustiveMatchPatterns(let expression, let patterns):
+            """
+            non-exhaustive pattern matches
+            when matching on expression
+            \(expression)
+            at least the following patterns are not matched:
+            \(patterns.map(String.init).joined(separator: "\n"))
             """
         case let .unexpectedList(expected, in: expression):
             """

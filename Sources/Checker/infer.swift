@@ -151,7 +151,10 @@ extension Context {
             for (pattern, value) in cases {
                 let valueType = try localContext.infer(value)
                 
-                
+                let notMatchedPatterns = valueType.notMatchedPatterns(with: [pattern])
+                guard notMatchedPatterns.isEmpty else {
+                    throw .nonexhaustiveMatchPatterns(for: copy expression, notMatchedPatterns: notMatchedPatterns)
+                }
                 
                 let bindings = try pattern.match(against: valueType) <!> TypeCheckError.patternMatchError
                 localContext.overlay(by: bindings)
@@ -170,7 +173,7 @@ extension Context {
 }
 
 extension CanonicalType {
-    func checkExhaustiveness(of patterns: [Pattern]) throws(TypeCheckError) {
-        
+    func notMatchedPatterns(with patterns: [Pattern]) -> [Pattern] {
+        []
     }
 }
