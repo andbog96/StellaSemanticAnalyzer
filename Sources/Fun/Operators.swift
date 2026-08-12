@@ -56,22 +56,6 @@ public func • <A, B, C>(
 @inlinable
 public func • <A, B, C, E: Error>(
     _ f: @escaping (B) throws(E) -> C,
-    _ g: @escaping (A) -> B
-) -> (A) throws(E) -> C {
-    { x in try f(g(x)) }
-}
-
-@inlinable
-public func • <A, B, C, E: Error>(
-    _ f: @escaping (B) -> C,
-    _ g: @escaping (A) throws(E) -> B
-) -> (A) throws(E) -> C {
-    { x in try f(g(x)) }
-}
-
-@inlinable
-public func • <A, B, C, E: Error>(
-    _ f: @escaping (B) throws(E) -> C,
     _ g: @escaping (A) throws(E) -> B
 ) -> (A) throws(E) -> C {
     { x in try f(g(x)) }

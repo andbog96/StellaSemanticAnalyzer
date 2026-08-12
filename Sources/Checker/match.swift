@@ -1,5 +1,5 @@
 extension Pattern {
-    consuming func match(against type: consuming CanonicalType) throws(PatternMatchError) -> TypeData {
+    consuming func match(against type: consuming CanonicalType) throws(PatternError) -> TypeData {
         switch (self, type) {
         // MARK: - var
         case (.var(let name), _):
@@ -11,7 +11,7 @@ extension Pattern {
             return [:]
 
         // MARK: - Nat
-        case (.int, .nat):
+        case (.zero, .nat):
             return [:]
 
         case (.succ(let pattern), .nat):
@@ -25,7 +25,7 @@ extension Pattern {
         case (.tuple(let patterns), .tuple(let types))
             where patterns.count == types.count:
             let bindings = try zip(patterns, types)
-                .map { pattern, type throws(PatternMatchError) in
+                .map { pattern, type throws(PatternError) in
                     try pattern.match(against: type)
                 }
             
@@ -40,11 +40,11 @@ extension Pattern {
                     (key: $0.label, value: $0.pattern)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
-                    PatternMatchError.duplicateRecordPatternFields(duplicates, in: self)
+                    PatternError.duplicateRecordPatternFields(duplicates, in: self)
                 }
             )
 
-            let bindings = try patterns.map { label, pattern throws(PatternMatchError) in
+            let bindings = try patterns.map { label, pattern throws(PatternError) in
                 guard let type = types[label] else {
                     throw .unexpectedPattern(self, for: type)
                 }
@@ -86,62 +86,47 @@ extension Pattern {
             }
 
         // MARK: - List
-        case (.list(let patterns), _):
-            return [:]
-//            guard case let .list(elementType) = type else {
-//                throw unexpectedPatternError
-//            }
-//
-//            var result: [Name: StellaType] = [:]
-//
-//            for pattern in patterns {
-//                result = try merge(
-//                    result,
-//                    pattern.bindings(matching: elementType)
-//                )
-//            }
-//
-//            return result
+        case (.list(let patterns), .list(let elementType)):
+            return try foldBindings § patterns.map { pattern throws(PatternError) in
+                try pattern.match(against: elementType)
+            }
 
-        case (.cons(let headPattern, let tailPattern), _):
-            return [:]
-//            guard case let .list(elementType) = type else {
-//                throw unexpectedPatternError
-//            }
-//
-//            let headBindings = try headPattern.bindings(matching: elementType)
-//            let tailBindings = try tailPattern.bindings(matching: .list(elementType))
-//            return try merge(headBindings, tailBindings)
+        case (.cons(let headPattern, let tailPattern), .list(let elementType)):
+            return try foldBindings § [headPattern, tailPattern].map { pattern throws(PatternError) in
+                try pattern.match(against: elementType)
+            }
 
         // MARK: - cast, as
         case (.cast(let pattern, let castType), _),
              (.ascription(let pattern, let castType), _):
-            return [:]
-//            guard sameType(type, castType) else {
-//                throw unexpectedPatternError
-//            }
-//
-//            return try pattern.bindings(matching: castType)
+            let castType = try CanonicalType(from: castType) <!> PatternError.canonizeError
+            
+            guard let type = try? castType.unify(with: type) else {
+                throw .unexpectedPattern(self, for: type)
+            }
+
+            return try pattern.match(against: type)
 
         default:
             throw .unexpectedPattern(self, for: type)
         }
     }
 
-    private func foldBindings(_ bindings: [TypeData]) throws(PatternMatchError) -> TypeData {
+    private func foldBindings(_ bindings: some Sequence<TypeData>) throws(PatternError) -> TypeData {
         try Dictionary(
             uniqueKeysWithValues: bindings.lazy.flatMap(identity),
             rejectingDuplicateKeysWith: { duplicates in
-                PatternMatchError.duplicateLetBinding(duplicates, in: self)
+                PatternError.duplicateLetBinding(duplicates, in: self)
             }
         )
     }
 }
 
-enum PatternMatchError: Error {
+enum PatternError: Error {
     case unexpectedPattern(Pattern, for: CanonicalType)
     case duplicateLetBinding([Name], in: Pattern)
     case duplicateRecordPatternFields([Name], in: Pattern)
     case unexpectedNonNullaryVariantPattern(name: Name, pattern: Pattern, type: CanonicalType)
     case unexpectedNullaryVariantPattern(name: Name, missed: CanonicalType, pattern: Pattern, type: CanonicalType)
+    case canonizeError(CanonizeError)
 }

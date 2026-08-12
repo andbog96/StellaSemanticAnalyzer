@@ -95,10 +95,14 @@ extension Pattern: StaticParsable {
     }
 
     static let basicPattern: Parser<Self> = alternatives {
-        Keyword.true.map  { Self.true }
-        Keyword.false.map { Self.false }
-        Keyword.unit.map  { Self.unit }
-        Name.map(Self.var)
-        lexer.integer.map(Self.int)
+        Keyword.true.map { `true` }
+        Keyword.false.map { `false` }
+        Keyword.unit.map { unit }
+        Name.map(`var`)
+        lexer.natural.map {
+            (0..<$0).reduce(zero) { pattern, _ in
+                succ(pattern)
+            }
+        }
     }
 }

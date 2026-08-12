@@ -4,12 +4,12 @@ enum Pattern: Sendable {
     case `false`
     case `true`
     
-    case int(Int)
+    case zero
     indirect case succ(Pattern)
 
     case unit
-    case tuple([Pattern])
-    case record([(label: Name, pattern: Pattern)])
+    case tuple(elements: [Pattern])
+    case record(fields: [(label: Name, pattern: Pattern)])
 
     indirect case inl(Pattern)
     indirect case inr(Pattern)

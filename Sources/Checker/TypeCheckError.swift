@@ -32,8 +32,8 @@ enum TypeCheckError: Error {
     case ambiguosList(in: Expression)
 
     case illegalEmptyMatch(in: Expression)
-    case nonexhaustiveLetPatterns(for: Expression, notMatchedPatterns: [Pattern])
-    case nonexhaustiveMatchPatterns(for: Expression, notMatchedPatterns: [Pattern])
+    case nonexhaustiveLetPatterns(for: Expression, missing: [Pattern])
+    case nonexhaustiveMatchPatterns(for: Expression, missing: [Pattern])
     case duplicateRecordFields([Name], in: Expression)
     case duplicateFunctionDeclaration(Name)
 
@@ -66,7 +66,7 @@ enum TypeCheckError: Error {
     case canonizeError(CanonizeError)
     case contextError(ContextError, in: Declaration)
     case unifyError(UnifyError, in: Expression)
-    case patternMatchError(PatternMatchError)
+    case patternMatchError(PatternError)
 }
 
 extension TypeCheckError {
@@ -135,6 +135,7 @@ extension TypeCheckError {
         case .patternMatchError(.duplicateRecordPatternFields): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
         case .patternMatchError(.unexpectedNonNullaryVariantPattern): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
         case .patternMatchError(.unexpectedNullaryVariantPattern): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
+        case .patternMatchError(.canonizeError(let canonizeError)): TypeCheckError.canonizeError(canonizeError).code
         }
     }
 }
@@ -459,6 +460,8 @@ extension TypeCheckError {
             provides a pattern to match for a label: '\(tag)', 
             but this tag must be null according to a matching type: \(type)
             """
+        case .patternMatchError(.canonizeError(let canonizeError)):
+            TypeCheckError.canonizeError(canonizeError).message
         }
     }
 }

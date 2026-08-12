@@ -108,8 +108,8 @@ extension Pattern: CustomStringConvertible {
         case .unit:
             "unit"
             
-        case .int(let int):
-            "\(int)"
+        case .zero:
+            "0"
             
         case .var(let identifier):
             identifier.description

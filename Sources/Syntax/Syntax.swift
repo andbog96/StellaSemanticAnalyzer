@@ -2,6 +2,12 @@ struct Name: Hashable {
     var value: String
 }
 
+extension Name: Comparable {
+    static func < (lhs: borrowing Name, rhs: borrowing Name) -> Bool {
+        lhs.value < rhs.value
+    }
+}
+
 struct Program {
     var extensions: Set<Extension>
     var declarations: [Declaration]

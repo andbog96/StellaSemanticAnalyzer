@@ -79,21 +79,10 @@ extension Context {
             let zeroType = try infer(zero)
             let stepType = try infer(step)
 
-//            return try stepType.unify(
-//                with: .function(from: [.nat], to: .function(from: [zeroType], to: zeroType))
-//            ) <!> { error in
-//                TypeCheckError.unifyError(error, in: copy expression)
-//            }
-
-            do {
-                return try stepType.unify(
-                    with: .function(
-                        from: [.nat],
-                        to: .function(from: [zeroType], to: zeroType)
-                    )
-                )
-            } catch {
-                throw .unifyError(error, in: copy expression)
+            return try stepType.unify(
+                with: .function(from: [.nat], to: .function(from: [zeroType], to: zeroType))
+            ) <!> { error in
+                TypeCheckError.unifyError(error, in: copy expression)
             }
             
         // MARK: - #unit-type
@@ -151,13 +140,13 @@ extension Context {
             for (pattern, value) in cases {
                 let valueType = try localContext.infer(value)
                 
-                let notMatchedPatterns = valueType.notMatchedPatterns(with: [pattern])
-                guard notMatchedPatterns.isEmpty else {
-                    throw .nonexhaustiveMatchPatterns(for: copy expression, notMatchedPatterns: notMatchedPatterns)
-                }
-                
                 let bindings = try pattern.match(against: valueType) <!> TypeCheckError.patternMatchError
                 localContext.overlay(by: bindings)
+                
+                let missingPatterns = valueType.missingPatterns(in: [pattern])
+                guard missingPatterns.isEmpty else {
+                    throw .nonexhaustiveMatchPatterns(for: copy expression, missing: missingPatterns)
+                }
             }
 
             return try localContext.infer(expression)
@@ -169,11 +158,5 @@ extension Context {
         default:
             return .auto // TODO: delete
         }
-    }
-}
-
-extension CanonicalType {
-    func notMatchedPatterns(with patterns: [Pattern]) -> [Pattern] {
-        []
     }
 }

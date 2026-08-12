@@ -4,9 +4,17 @@ extension Collection {
     }
 }
 
+extension Dictionary where Key: Comparable {
+    func sorted() -> [Element] {
+        sorted {
+            $0.key < $1.key
+        }
+    }
+}
+
 extension Dictionary {
     init<E: Error>(
-        uniqueKeysWithValues keysAndValues: some Sequence<(key: Key, value: Value)>,
+        uniqueKeysWithValues keysAndValues: some Sequence<(Key, Value)>,
         rejectingDuplicateKeysWith duplicateKeysError: (_ duplicateKeys: [Key]) -> E
     ) throws(E) {
         self = [Key: Value](minimumCapacity: keysAndValues.underestimatedCount)
@@ -19,7 +27,7 @@ extension Dictionary {
             keysAndValues
             .lazy
             .filter(isDuplicate)
-            .map(\.key)
+            .map(\.0)
         }
 
         guard duplicates.isEmpty else {
