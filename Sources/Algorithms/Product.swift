@@ -1,6 +1,5 @@
-// Декартово произведение
 extension RandomAccessCollection where Element: RandomAccessCollection {
-    // TODO: - переписать на ленивую версию, без промежуточных аллокаций и копирований
+    // TODO: - lazy without allocations and copies
     func product() -> some Sequence<[Element.Element]> {
         reduce([[]]) { accumulator, current in
             accumulator.flatMap { combined in

@@ -83,6 +83,6 @@ extension CanonicalType {
 }
 
 enum UnifyError: Error {
-    case unexpectedType(actual: CanonicalType, expected: CanonicalType)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType)
+    case unexpectedType(actual: CanonicalType, expected: CanonicalType)
 }

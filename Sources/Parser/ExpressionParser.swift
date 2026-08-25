@@ -17,11 +17,12 @@ extension Expression {
             single(using: expression)
             Sign.semicolon.parser
                 .flatMap { expression.optional }
-                .optional.map(\.?)
+                .optional
+                .map(\.?)
         }
         .map { expr, nextExpr in
             guard let nextExpr else { return expr }
-            return .assign(expr, nextExpr)
+            return .assign(variable: expr, assignee: nextExpr)
         } <?> "expresssion"
     }
 
@@ -42,7 +43,7 @@ extension Expression {
                     }.optional
                 }.map { expr, assignedExpr in
                     guard let assignedExpr else { return expr }
-                    return .assign(expr, assignedExpr)
+                    return .assign(variable: expr, assignee: assignedExpr)
                 } <?> "assignment"
             }
         }

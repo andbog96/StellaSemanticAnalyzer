@@ -8,12 +8,17 @@ let package = Package(
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/davedufresne/SwiftParsec.git", from: "4.0.1"),
+        .package(url: "https://github.com/apple/swift-collections.git", .upToNextMajor(from: "1.6.0"))
     ],
     targets: [
         .executableTarget(
             name: "StellaTypeChecker",
             dependencies: [
                 .product(name: "SwiftParsec", package: "SwiftParsec"),
+                .product(name: "Collections", package: "swift-collections")
+            ],
+            swiftSettings: [
+                .enableUpcomingFeature("FullTypedThrows")
             ]
         ),
         .testTarget(

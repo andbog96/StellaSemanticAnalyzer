@@ -3,33 +3,32 @@ extension Pattern {
         switch (self, type) {
         // MARK: - var
         case (.var(let name), _):
-            return [name: type]
+            return TypeData(name: name, type: type)
 
         // MARK: - Bool
         case (.false, .bool),
              (.true, .bool):
-            return [:]
+            return nil
 
         // MARK: - Nat
         case (.zero, .nat):
-            return [:]
+            return nil
 
         case (.succ(let pattern), .nat):
             return try pattern.match(against: .nat)
 
         // MARK: - Unit
         case (.unit, .unit):
-            return [:]
+            return nil
 
         // MARK: - tuple
         case (.tuple(let patterns), .tuple(let types))
             where patterns.count == types.count:
-            let bindings = try zip(patterns, types)
+            return try zip(patterns, types)
                 .map { pattern, type throws(PatternError) in
                     try pattern.match(against: type)
                 }
-            
-            return try foldBindings(bindings)
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
 
         // MARK: - record
         case (.record(let patterns), .record(let types))
@@ -44,15 +43,15 @@ extension Pattern {
                 }
             )
 
-            let bindings = try patterns.map { label, pattern throws(PatternError) in
-                guard let type = types[label] else {
-                    throw .unexpectedPattern(self, for: type)
+            return try patterns
+                .map { label, pattern throws(PatternError) in
+                    guard let type = types[label] else {
+                        throw .unexpectedPattern(self, for: type)
+                    }
+
+                    return try pattern.match(against: type)
                 }
-                
-                return try pattern.match(against: type)
-            }
-            
-            return try foldBindings(bindings)
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
 
         // MARK: - sum
         case (.inl(let pattern), .sum(let type, _)),
@@ -67,7 +66,7 @@ extension Pattern {
             
             switch (payloadPattern, caseType) {
             case (nil, nil):
-                return [:]
+                return nil
             case (nil, let payloadType?):
                 throw .unexpectedNullaryVariantPattern(
                     name: label,
@@ -87,14 +86,18 @@ extension Pattern {
 
         // MARK: - List
         case (.list(let patterns), .list(let elementType)):
-            return try foldBindings § patterns.map { pattern throws(PatternError) in
-                try pattern.match(against: elementType)
-            }
+            return try patterns
+                .map { pattern throws(PatternError) in
+                    try pattern.match(against: elementType)
+                }
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
 
         case (.cons(let headPattern, let tailPattern), .list(let elementType)):
-            return try foldBindings § [headPattern, tailPattern].map { pattern throws(PatternError) in
-                try pattern.match(against: elementType)
-            }
+            return try CollectionOfTwo(
+                try headPattern.match(against: elementType),
+                try tailPattern.match(against: .list(elementType))
+            )
+            .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
 
         // MARK: - cast, as
         case (.cast(let pattern, let castType), _),
@@ -112,21 +115,18 @@ extension Pattern {
         }
     }
 
-    private func foldBindings(_ bindings: some Sequence<TypeData>) throws(PatternError) -> TypeData {
-        try Dictionary(
-            uniqueKeysWithValues: bindings.lazy.flatMap(identity),
-            rejectingDuplicateKeysWith: { duplicates in
-                PatternError.duplicateLetBinding(duplicates, in: self)
-            }
-        )
+    private func duplicateLetBindingError(_ duplicates: [Name]) -> PatternError {
+        .duplicateLetBinding(duplicates, in: self)
     }
 }
 
 enum PatternError: Error {
     case unexpectedPattern(Pattern, for: CanonicalType)
+
     case duplicateLetBinding([Name], in: Pattern)
     case duplicateRecordPatternFields([Name], in: Pattern)
     case unexpectedNonNullaryVariantPattern(name: Name, pattern: Pattern, type: CanonicalType)
     case unexpectedNullaryVariantPattern(name: Name, missed: CanonicalType, pattern: Pattern, type: CanonicalType)
+
     case canonizeError(CanonizeError)
 }

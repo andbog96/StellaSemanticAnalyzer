@@ -23,7 +23,12 @@ extension Program: StaticParsable {
             }
             
             Sign.semicolon
-        } <?> "extension declaration"
+        }
+        .many
+        .map {
+            $0.foldLeft(Set<Extension>.union) ?? []
+        }
+        <?> "extension declaration"
         
         Declaration.parser.many
     }
@@ -46,27 +51,39 @@ extension MemoryAddress: StaticParsable {
 }
 
 extension Declaration: StaticParsable {
-    static let parser: Parser<Self> = alternatives {
-        Keyword.exception.parser.flatMap { _ in // if starts with an `exception` word
-            exceptionType <|> exceptionVariant
-        }
-        normalFunction <|> genericFunction
-    } <?> "declaration"
+    static var parser: Parser<Self> {
+        alternatives {
+            Keyword.exception.parser.flatMap { _ in
+                exceptionType <|> exceptionVariant
+            }
+            
+            Parser<Never>.empty.noOccurence.flatMap { _ in
+                function
+            }
+        } <?> "declaration"
+    }
 
-    static var normalFunction: Parser<Self> {
+    static var function: Parser<Self> {
         rule {
+            Keyword.generic.parser.discard
             Keyword.fn
             Name.parser <?> "function name"
+            Name.parser
+                .commaSeparated
+                .inBrackets
+                .optional
+                .map { $0 ?? [] } <?> "type variables"
             parameters
             returnType
             throwTypes
             functionBody
         }
-        .map { name, parameters, returnType, throwTypes, body in
+        .map { name, typeVariables, parameters, returnType, throwTypes, body in
             let (declarations, returnExpression) = body
             
             return function(
                 name: name,
+                typeVariables: typeVariables,
                 parameters: parameters,
                 returnType: returnType,
                 throwTypes: throwTypes,
@@ -76,49 +93,29 @@ extension Declaration: StaticParsable {
         } 
         <?> "function"
     }
-
-    static var genericFunction: Parser<Self> {
-        rule {
-            Keyword.generic
-            Keyword.fn
-            Name.parser <?> "function name"
-            Name.parser
-                .labels("type variable")
-                .commaSeparated
-                .inBrackets <?> "type variables"
-            parameters
-            returnType
-            throwTypes
-            functionBody
-        }.map { (name, typeParameters, parameters, returnType, throwTypes, body) in
-            let (declarations, returnExpression) = body
-            
-            return genericFunction(
-                name: name,
-                typeVariables: typeParameters,
-                parameters: parameters,
-                returnType: returnType,
-                throwTypes: throwTypes,
-                declarations: declarations,
-                returnExpression: returnExpression
-            )
-        } <?> "generic function"
-    }
     
-    static let parameters: Parser<[Parameter]> =
-        Parameter
-            .parser
-            .commaSeparated
-            .inParens <?> "parameters"
+    static let parameters: Parser<[(name: Name, type: RawType)]> = rule {
+        Name.self
+        Sign.colon
+        RawType.self
+    }
+    .map {
+        (name: $0, type: $1)
+    }
+    .commaSeparated
+    .inParens <?> "parameters"
 
     static let functionBody: Parser<([Declaration], Expression)> = rule {
         rule {
             Declaration.self
             Sign.semicolon.parser.optional
-        }.many
+        }
+        .many
+        
         Keyword.return
         Expression.self
-    }.inBraces <?> "function body"
+    }
+    .inBraces <?> "function body"
 
     static let returnType: Parser<RawType?> = rule {
         Sign.arrow
@@ -128,28 +125,18 @@ extension Declaration: StaticParsable {
     static let throwTypes: Parser<[RawType]> = rule {
         Keyword.throws
         RawType.parser.commaSeparated1
-    }.optional.map { $0 ?? [] } <?> "throw type" // if no `throws` return []
+    }.optional.map { $0 ?? [] } <?> "throw type"
 
-    // `exception` already parsed
     static let exceptionType: Parser<Self> = rule {
         Keyword.type
         Sign.equals
         RawType.parser
     }.map(Self.exceptionType) <?> "exception type"
 
-    // `exception` already parsed
     static let exceptionVariant: Parser<Self> = rule {
         Keyword.variant
         Name.self
         Sign.colon
         RawType.self
     }.map(Self.exceptionVariant) <?> "exception variant"
-}
-
-extension Declaration.Parameter: StaticParsable {
-    static let parser: Parser<Self> = rule {
-        Name.self
-        Sign.colon
-        RawType.self
-    }.map(Self.init) <?> "parameter"
 }

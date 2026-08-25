@@ -110,7 +110,7 @@ extension Expression: CustomStringConvertible {
             "\(expression.code(on: 3)) cast as \(type)"
         case .abstraction(let params, let expression):
             """
-            fn(\(params.map(\.description).joined(separator: ", "))) {
+            fn(\(params.map({"\($0.name): \($0.type)"}).joined(separator: ", "))) {
                 return \(indented: expression)
             }
             """
@@ -152,20 +152,20 @@ extension Expression: CustomStringConvertible {
             "panic!"
         case .throw(let expression):
             "throw(\(expression))"
-        case .tryCatch(let expression, let pattern, let handler):
+        case .tryCatch(let attempted, let pattern, let handler):
             """
             try {
-                \(indented: expression)
+                \(indented: attempted)
             } catch {
                 \(pattern) => \(indented: handler)
             }
             """
-        case .tryWith(let expression, let handler):
+        case .tryWith(let expression, let fallback):
             """
             try {
                 \(indented: expression)
             } with {
-                \(indented: handler)
+                \(indented: fallback)
             }
             """
         case .tryCastAs(let expression, let type, let pattern, let handler, let with):

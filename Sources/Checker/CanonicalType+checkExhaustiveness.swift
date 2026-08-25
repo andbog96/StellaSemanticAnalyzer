@@ -1,12 +1,21 @@
 private let wildcard = Pattern.var § Name(value: "__something__")
 
 extension CanonicalType {
-    func missingPatterns(in patterns: [Pattern]) -> [Pattern] {
-        witnesses.filter { witness in
+    func checkExhaustiveness(of patterns: some Sequence<Pattern>) throws(ExhaustivenessError) {
+        let missingPatterns = witnesses.filter { witness in
             !patterns.contains(where: witness.isCovered(by:))
         }
+        guard missingPatterns.isEmpty else {
+            throw ExhaustivenessError(missingPatterns: missingPatterns)
+        }
     }
+}
 
+struct ExhaustivenessError: Error {
+    var missingPatterns: [Pattern]
+}
+
+extension CanonicalType {
     private var witnesses: [Pattern] {
         switch self {
         case .bool:
@@ -75,41 +84,18 @@ private extension Pattern {
              (.true, .true):
             return true
             
-        case (.zero, .zero):
+        case (.zero, .zero),
+             (.succ, .succ):
             return true
-            
-        case (.succ(let witness), .succ(let pattern)):
-            return witness.isCovered(by: pattern)
-            
+
         case (.unit, .unit):
             return true
             
         case (.tuple(let witnesses), .tuple(let patterns)):
-            guard witnesses.count == patterns.count else {
-                return false
-            }
-
-            return zip(witnesses, patterns)
-                .allSatisfy { witness, pattern in
-                    witness.isCovered(by: pattern)
-                }
+            return witnesses.count == patterns.count
 
         case (.record(let witnesses), .record(let patterns)):
-            guard witnesses.count == patterns.count else {
-                return false
-            }
-            
-            return patterns.allSatisfy { label, pattern in
-                let witness = witnesses.first { witnessLabel, _ in
-                    label == witnessLabel
-                }
-                
-                guard let witness else {
-                    return false
-                }
-
-                return witness.pattern.isCovered(by: pattern)
-            }
+            return witnesses.count == patterns.count
 
         case (.inl(let witness), .inl(let pattern)),
              (.inr(let witness), .inr(let pattern)):
@@ -130,14 +116,7 @@ private extension Pattern {
             }
 
         case (.list(let witnesses), .list(let patterns)):
-            guard witnesses.count == patterns.count else {
-                return false
-            }
-            
-            return zip(witnesses, patterns)
-                .allSatisfy { witness, pattern in
-                    witness.isCovered(by: pattern)
-                }
+            return witnesses.count == patterns.count
 
         case (.cons(let witnessHead, let witnessTail), .cons(let head, let tail)):
             return witnessHead.isCovered(by: head) && witnessTail.isCovered(by: tail)

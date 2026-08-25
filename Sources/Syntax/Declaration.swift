@@ -1,17 +1,8 @@
 enum Declaration: Sendable {
     case function(
         name: Name,
-        parameters: [Parameter],
-        returnType: RawType?,
-        throwTypes: [RawType],
-        declarations: [Declaration],
-        returnExpression: Expression
-    )
-    
-    case genericFunction(
-        name: Name,
         typeVariables: [Name],
-        parameters: [Parameter],
+        parameters: [(name: Name, type: RawType)],
         returnType: RawType?,
         throwTypes: [RawType],
         declarations: [Declaration],
@@ -19,44 +10,22 @@ enum Declaration: Sendable {
     )
     
     case exceptionType(RawType)
-    case exceptionVariant(name: Name, type: RawType)
+    case exceptionVariant(label: Name, rawType: RawType)
 }
 
 extension Declaration {
     static func lambda(
-        parameters: [Parameter],
+        parameters: [(name: Name, type: RawType)],
         returnExpression: Expression
     ) -> Declaration {
         .function(
             name: "",
+            typeVariables: [],
             parameters: parameters,
             returnType: nil,
             throwTypes: [],
             declarations: [],
             returnExpression: returnExpression
         )
-    }
-
-    static func genericLambda(
-        typeVariables: [Name],
-        parameters: [Parameter],
-        returnExpression: Expression
-    ) -> Declaration {
-        .genericFunction(
-            name: "",
-            typeVariables: typeVariables,
-            parameters: parameters,
-            returnType: nil,
-            throwTypes: [],
-            declarations: [],
-            returnExpression: returnExpression
-        )
-    }
-}
-
-extension Declaration {
-    struct Parameter {
-        var name: Name
-        var type: RawType
     }
 }

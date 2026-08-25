@@ -7,7 +7,7 @@ guard let data = try FileHandle.standardInput.readToEnd(),
 
 do {
     let program = try Program.parser.run(sourceName: "stdin", input: programText)
-    try program.check()
+    _ = try Context(from: program)
 } catch let error as StellaParseError {
     quit(message: error.description)
 } catch let error as TypeCheckError {

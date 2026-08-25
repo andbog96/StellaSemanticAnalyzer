@@ -1,6 +1,9 @@
 enum TypeCheckError: Error {
+    case unsupported(code: String? = nil, message: String? = nil)
+    
     case missingMain
     case undefinedVariable(Name)
+    case unexpectedType(actual: CanonicalType, expected: CanonicalType, for: Expression)
 
     case notAFunction(actual: CanonicalType, in: Expression)
     case notATuple(actual: CanonicalType, in: Expression)
@@ -25,7 +28,9 @@ enum TypeCheckError: Error {
     case unexpectedRecordFields(fields: [Name], type: CanonicalType, in: Expression)
     case unexpectedFieldAccess(field: Name, type: CanonicalType, in: Expression)
     case unexpectedVariantLabel(label: Name, expected: CanonicalType, in: Expression)
+
     case tupleIndexOutOfBounds(index: Int, type: CanonicalType, in: Expression)
+    case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType, in: Expression)
 
     case ambiguosSumType(in: Expression)
     case ambiguosVariantType(in: Expression)
@@ -34,10 +39,8 @@ enum TypeCheckError: Error {
     case illegalEmptyMatch(in: Expression)
     case nonexhaustiveLetPatterns(for: Expression, missing: [Pattern])
     case nonexhaustiveMatchPatterns(for: Expression, missing: [Pattern])
-    case duplicateRecordFields([Name], in: Expression)
-    case duplicateFunctionDeclaration(Name)
 
-    case duplicateTypeParameter(Name, in: Declaration)
+    case duplicateRecordFields([Name], in: Expression)
 
     case incorrectMainArity(Int)
     case incorrectArgumentsNumber(actual: Int, expected: Int, type: CanonicalType, in: Expression)
@@ -49,31 +52,38 @@ enum TypeCheckError: Error {
     // Этап 2
     case exceptionTypeNotDeclared(in: Expression)
     case ambiguousThrowType(in: Expression)
-    case ambiguousReferenceType(in: Expression)
+    
     case ambiguousPanicType(in: Expression)
+    
+    case ambiguousReferenceType(in: Expression)
     case notAReference(actual: CanonicalType, in: Expression)
     case unexpectedMemoryAddress(in: Expression)
     case unexpectedReference(expected: CanonicalType, in: Expression)
+    
     case unexpectedSubtype(CanonicalType, ofSupertype: CanonicalType, in: Expression)
     
     // Этап 2, допы
-    case duplicateExceptionType(CanonicalType, in: Expression)
-    case duplicateExceptionVariant(label: Name, in: Expression)
-    case conflictingExceptionDeclarations(in: Expression)
-    case illegalLocalExceptionType(in: Expression)
-    case illegalLocalOpenVariantException(in: Expression)
+    case duplicateExceptionType
+    case duplicateExceptionVariant(label: Name)
+    case conflictingExceptionDeclarations
+    case illegalLocalExceptionType
+    case illegalLocalOpenVariantException
     
     case canonizeError(CanonizeError)
-    case contextError(ContextError, in: Declaration)
     case unifyError(UnifyError, in: Expression)
-    case patternMatchError(PatternError)
+    case patternError(PatternError)
 }
 
 extension TypeCheckError {
     var code: String {
         switch self {
+        case .unsupported(let code, _),
+             .canonizeError(.unsupported(let code, _)):
+            code ?? ""
+            
         case .missingMain: "ERROR_MISSING_MAIN"
         case .undefinedVariable: "ERROR_UNDEFINED_VARIABLE"
+        case .unexpectedType: "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
         case .notAFunction: "ERROR_NOT_A_FUNCTION"
         case .notATuple: "ERROR_NOT_A_TUPLE"
         case .notARecord: "ERROR_NOT_A_RECORD"
@@ -90,6 +100,7 @@ extension TypeCheckError {
         case .unexpectedFieldAccess: "ERROR_UNEXPECTED_FIELD_ACCESS"
         case .unexpectedVariantLabel: "ERROR_UNEXPECTED_VARIANT_LABEL"
         case .tupleIndexOutOfBounds: "ERROR_TUPLE_INDEX_OUT_OF_BOUNDS"
+        case .unexpectedTupleLength: "ERROR_UNEXPECTED_TUPLE_LENGTH"
         case .ambiguosSumType: "ERROR_AMBIGUOUS_SUM_TYPE"
         case .ambiguosVariantType: "ERROR_AMBIGUOUS_VARIANT_TYPE"
         case .ambiguosList: "ERROR_AMBIGUOUS_LIST"
@@ -97,8 +108,6 @@ extension TypeCheckError {
         case .nonexhaustiveLetPatterns: "ERROR_NONEXHAUSTIVE_LET_PATTERNS"
         case .nonexhaustiveMatchPatterns: "ERROR_NONEXHAUSTIVE_MATCH_PATTERNS"
         case .duplicateRecordFields: "ERROR_DUPLICATE_RECORD_FIELDS"
-        case .duplicateFunctionDeclaration: "ERROR_DUPLICATE_FUNCTION_DECLARATION"
-        case .duplicateTypeParameter: "ERROR_DUPLICATE_TYPE_PARAMETER"
         case .incorrectMainArity: "ERROR_INCORRECT_ARITY_OF_MAIN"
         case .incorrectArgumentsNumber: "ERROR_INCORRECT_NUMBER_OF_ARGUMENTS"
         case .unexpectedParametersNumber: "ERROR_UNEXPECTED_NUMBER_OF_PARAMETERS_IN_LAMBDA"
@@ -119,23 +128,27 @@ extension TypeCheckError {
         case .illegalLocalOpenVariantException: "ERROR_ILLEGAL_LOCAL_OPEN_VARIANT_EXCEPTION"
             
         // MARK: - CanonizeError
+        case .canonizeError(.duplicateFunctionDeclaration): "ERROR_DUPLICATE_FUNCTION_DECLARATION"
+        case .canonizeError(.duplicateTypeParameters): "ERROR_DUPLICATE_TYPE_PARAMETER"
+        case .canonizeError(.contextError(.duplicateFunctionParameter, _)): "ERROR_DUPLICATE_FUNCTION_PARAMETER"
         case .canonizeError(.duplicateRecordTypeFields): "ERROR_DUPLICATE_RECORD_TYPE_FIELDS"
         case .canonizeError(.duplicateVariantTypeFields): "ERROR_DUPLICATE_VARIANT_TYPE_FIELDS"
             
-        // MARK: - ContextError
-        case .contextError(.duplicateFunctionParameter, _): "ERROR_DUPLICATE_FUNCTION_PARAMETER"
-            
         // MARK: - UnifyError
-        case .unifyError(.unexpectedType, _): "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
-        case .unifyError(.unexpectedTupleLength, _): "ERROR_UNEXPECTED_TUPLE_LENGTH"
-            
+        case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
+            Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).code
+        case .unifyError(.unexpectedType(let actual, let expected), let expression):
+            Self.unexpectedType(actual: actual, expected: expected, for: expression).code
+
         // MARK: - PatternMatchError
-        case .patternMatchError(.unexpectedPattern): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
-        case .patternMatchError(.duplicateLetBinding): "ERROR_DUPLICATE_LET_BINDING"
-        case .patternMatchError(.duplicateRecordPatternFields): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
-        case .patternMatchError(.unexpectedNonNullaryVariantPattern): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
-        case .patternMatchError(.unexpectedNullaryVariantPattern): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
-        case .patternMatchError(.canonizeError(let canonizeError)): TypeCheckError.canonizeError(canonizeError).code
+        case .patternError(.unexpectedPattern): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
+        case .patternError(.duplicateLetBinding): "ERROR_DUPLICATE_LET_BINDING"
+        case .patternError(.duplicateRecordPatternFields): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
+        case .patternError(.unexpectedNonNullaryVariantPattern): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
+        case .patternError(.unexpectedNullaryVariantPattern): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
+
+        case .patternError(.canonizeError(let canonizeError)):
+            Self.canonizeError(canonizeError).code
         }
     }
 }
@@ -143,12 +156,23 @@ extension TypeCheckError {
 extension TypeCheckError {
     var message: String {
         switch self {
+        case .unsupported(_, let message),
+             .canonizeError(.unsupported(_, let message)):
+            message ?? "unsupported feature"
+
         case .missingMain:
             "main function is missing from the program"
         case let .incorrectMainArity(n):
             "main function must have one and only one parameter, instead it has \(n)"
         case let .undefinedVariable(name):
             "Undefined variable: \(name)"
+        case .unexpectedType(let actual, let expected, let expression):
+            """
+            Expected type: \(expected)
+            Instead have: \(actual)
+            In expression: 
+                \(indented: expression)
+            """
         case let .notAFunction(actualType, in: expression):
             """
             Expression is expected to have a function type
@@ -198,6 +222,13 @@ extension TypeCheckError {
             for a tuple of type: \(type)
             In expression: \(expression)
             """
+        case .unexpectedTupleLength(let actual, let expected, let type, let expression):
+            """
+            Unexpected lenght of tuple: \(actual), 
+            expecting length \(expected), because of type:
+                \(indented: type)
+            In expression: \(expression)
+            """
         case let .unexpectedTuple(expectedType, in: expression):
             """
             Expected type: \(expectedType)
@@ -235,15 +266,6 @@ extension TypeCheckError {
             """
             Duplicate record fields: \(fields)
             In expression: \(expression)
-            """
-        case let .duplicateFunctionDeclaration(id):
-            """
-            Duplicate function declaration: \(id)
-            """
-        case let .duplicateTypeParameter(id, in: declaration):
-            """
-            Duplicate type parameter: \(id)
-            In declaration: \(declaration)
             """
         case let .illegalEmptyMatch(in: expression):
             """
@@ -363,40 +385,45 @@ extension TypeCheckError {
             In expression:
                 \(indented: expression)
             """
-        case let .duplicateExceptionType(type, in: expression):
+        case .duplicateExceptionType:
             """
-            в одной области видимости объявлено более одного типа
-            исключений ( #exception-type-declaration ) (допускается только одно объявление)
-            type: \(type)
-            expression: \(expression) 
+            Duplicate exception type declaration(s) at top-level (only one is allowed).
             """
-        case .duplicateExceptionVariant(let label, let expression):
+        case .duplicateExceptionVariant(let label):
             """
-            повторяющаяся метка варианта в декларациях 
-            исключений с открытым вариантом ( #open-variant-exceptions )
-            label: \(label)
-            expression: \(expression) 
+            Duplicate exception variant declaration(s) at top-level: \(label)
             """
-        case let .conflictingExceptionDeclarations(in: expression):
+        case .conflictingExceptionDeclarations:
             """
-            в одной области видимости присутствуют и
-            декларация exception type, и декларации exception variant (их нельзя смешивать)
-            expression: \(expression) 
+            Conflicting exception declarations at top-level: 
+            cannot mix 'exception type' and 'exception variant' declarations.
             """
-        case let .illegalLocalExceptionType(in: expression):
+        case .illegalLocalExceptionType:
             """
-            декларация типа исключения ( #exception-type-declaration )
-            в недопустимой (например, локальной) области видимости
-            expression: \(expression) 
+            Illegal local exception type declaration!
             """
-        case let .illegalLocalOpenVariantException(in: expression):
+        case .illegalLocalOpenVariantException:
             """
-            декларация исключения с открытым вариантом ( #open-variant-exceptions ) 
-            в недопустимой (например, локальной) области видимости
-            expression: \(expression) 
+            Illegal local exception variant declaration!
             """
             
         // MARK: - CanonizeError
+        case .canonizeError(.duplicateFunctionDeclaration(let id)):
+            """
+            Duplicate function declaration: \(id)
+            """
+        case let .canonizeError(.duplicateTypeParameters(id, in: declaration)):
+            """
+            Duplicate type parameter: \(id)
+            In declaration:
+            \(declaration)
+            """
+        case .canonizeError(.contextError(.duplicateFunctionParameter(let id), let declaration)):
+            """
+            Duplicate function parameter: \(id)
+            In declaration: 
+            \(declaration)
+            """
         case .canonizeError(.duplicateRecordTypeFields(let fields, let type)):
             """
             Duplicate record fields: \(fields)
@@ -408,59 +435,42 @@ extension TypeCheckError {
             In a variant type: \(type)
             """
             
-        // MARK: - ContextError
-        case .contextError(.duplicateFunctionParameter(let id), let declaration):
-            """
-            Duplicate function parameter: \(id)
-            In declaration: \(declaration)
-            """
-            
         // MARK: - UnifyError
-        case .unifyError(.unexpectedType(let actual, let expected), let expression):
-            """
-            Expected type: \(expected)
-            Instead have: \(actual)
-            In expression: 
-                \(indented: expression)
-            """
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
-            """
-            Unexpected lenght of tuple: \(actual), 
-            expecting length \(expected), because of type:
-                \(indented: type)
-            In expression: \(expression)
-            """
-            
+            Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
+        case .unifyError(.unexpectedType(let actual, let expected), let expression):
+            Self.unexpectedType(actual: actual, expected: expected, for: expression).message
+
         // MARK: - PatternMatchError
-        case .patternMatchError(.unexpectedPattern(let pattern, let type)):
+        case .patternError(.unexpectedPattern(let pattern, let type)):
             """
             Pattern: \(pattern)
             cannot be used to match against type: \(type)
             """
-        case .patternMatchError(.duplicateLetBinding(let id, in: let pattern)):
+        case .patternError(.duplicateLetBinding(let id, in: let pattern)):
             """
             Duplicate let binding: \(id.lazy.map(String.init).joined(separator: ", "))
             In pattern: \(pattern)
             """
-        case .patternMatchError(.duplicateRecordPatternFields(let fields, in: let pattern)):
+        case .patternError(.duplicateRecordPatternFields(let fields, in: let pattern)):
             """
             Duplicate record fields: \(fields)
             In pattern: \(pattern)
             """
-        case .patternMatchError(.unexpectedNullaryVariantPattern(let tag, let missedType, let pattern, let type)):
+        case .patternError(.unexpectedNullaryVariantPattern(let tag, let missedType, let pattern, let type)):
             """
             Pattern: \(pattern) 
             suggests that a variant label: '\(tag)' must be a nullary label
             but is should match the type: \(missedType)
             according to the matching type: \(type)
             """
-        case .patternMatchError(.unexpectedNonNullaryVariantPattern(let tag, let pattern, let type)):
+        case .patternError(.unexpectedNonNullaryVariantPattern(let tag, let pattern, let type)):
             """
             Pattern: \(pattern)
             provides a pattern to match for a label: '\(tag)', 
             but this tag must be null according to a matching type: \(type)
             """
-        case .patternMatchError(.canonizeError(let canonizeError)):
+        case .patternError(.canonizeError(let canonizeError)):
             TypeCheckError.canonizeError(canonizeError).message
         }
     }

@@ -1,6 +1,7 @@
+import Collections
+
 enum CanonicalType: Sendable, Equatable, Hashable {
     indirect case function(from: [Self], to: Self)
-    case variable(Name)
 
     case bool
     case nat
@@ -21,10 +22,18 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case bottom
 
     case auto
+    case variable(Name)
     indirect case forall(variables: [Name], type: Self)
 }
 
 extension CanonicalType {
+    static func function(_ function: Function) -> Self {
+        .function(
+            from: Array.init § function.parameters.values,
+            to: function.returnType
+        )
+    }
+    
     init(from rawType: RawType) throws(CanonizeError) {
         self = switch rawType {
         case .function(let from, let to):
@@ -32,9 +41,6 @@ extension CanonicalType {
                 from: from.map(CanonicalType.init(from:)),
                 to: Self(from: to)
             )
-        
-        case .variable(let name):
-            .variable(name)
         
         case .bool:
             .bool
@@ -92,6 +98,9 @@ extension CanonicalType {
         
         case .bottom:
             .bottom
+            
+        case .variable(let name):
+            .variable(name)
         
         case .auto:
             .auto
@@ -105,8 +114,8 @@ extension CanonicalType {
     }
 }
 
-extension Sequence<Declaration.Parameter> {
-    func canonized() throws(CanonizeError) -> [(name: Name, type: CanonicalType)] {
+extension Sequence<(name: Name, type: RawType)> {
+    func canonized() throws(CanonizeError) -> some Sequence<(name: Name, type: CanonicalType)> {
         try map { parameter throws(CanonizeError) in
             (
                 name: parameter.name,
@@ -116,7 +125,29 @@ extension Sequence<Declaration.Parameter> {
     }
 }
 
+extension Function.Parameters {
+    init(from parameters: some Sequence<(name: Name, type: CanonicalType)>) throws(ContextError) {
+        self = OrderedDictionary(minimumCapacity: parameters.underestimatedCount)
+
+        for parameter in parameters {
+            guard updateValue(parameter.type, forKey: parameter.name) == nil else {
+                throw .duplicateFunctionParameter(parameter.name)
+            }
+        }
+    }
+}
+
 enum CanonizeError: Error {
+    case unsupported(code: String? = nil, message: String? = nil)
+    
+    case duplicateFunctionDeclaration(Name)
+    case duplicateTypeParameters([Name], in: Declaration)
     case duplicateRecordTypeFields([Name], in: RawType)
     case duplicateVariantTypeFields([Name], in: RawType)
+    
+    case contextError(ContextError, in: Declaration)
+}
+
+enum ContextError: Error {
+    case duplicateFunctionParameter(Name)
 }

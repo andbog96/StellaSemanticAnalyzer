@@ -105,13 +105,13 @@ extension Expression: StaticParsable {
                 }
                 .inBraces
             }
-            .map { tryCatch(tried, $0, $1) } <?> "try catch expression"
+            .map { tryCatch(attempted: tried, pattern: $0, handler: $1) } <?> "try catch expression"
 
             rule {
                 Keyword.with
                 thisParser.inBraces
             }
-            .map { tryWith(tried, $0) } <?> "try with expression"
+            .map { tryWith(attempted: tried, fallback: $0) } <?> "try with expression"
 
             rule {
                 Keyword.cast

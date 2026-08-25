@@ -9,12 +9,12 @@ public func not(_ value: Bool) -> Bool {
 }
 
 @inlinable
-public func first<A, B>(_ a: A, _ b: B) -> A {
+public func first<A, B>(_ a: A, _: B) -> A {
     a
 }
 
 @inlinable
-public func second<A, B>(_ a: A, _ b: B) -> B {
+public func second<A, B>(_: A, _ b: B) -> B {
     b
 }
 

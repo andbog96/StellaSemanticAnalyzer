@@ -1,7 +1,7 @@
 enum Expression: Sendable {
     // MARK: - STLC
     case `var`(Name)
-    indirect case abstraction(parameters: [Declaration.Parameter], returnExpression: Expression)
+    indirect case abstraction(parameters: [(name: Name, type: RawType)], returnExpression: Expression)
     indirect case application(calle: Expression, arguments: [Expression])
     
     // MARK: - Bool
@@ -45,31 +45,31 @@ enum Expression: Sendable {
     indirect case match(Expression, cases: [(pattern: Pattern, value: Expression)])
 
     // MARK: - #lists
-    indirect case list([Expression])
-    indirect case cons(Expression, Expression)
-    indirect case head(Expression)
-    indirect case tail(Expression)
-    indirect case isEmpty(Expression)
+    indirect case list(elements: [Expression])
+    indirect case cons(head: Expression, tail: Expression)
+    indirect case head(list: Expression)
+    indirect case tail(list: Expression)
+    indirect case isEmpty(list: Expression)
 
     // MARK: - #fixpoint-combinator
-    indirect case fix(Expression)
+    indirect case fix(generator: Expression)
 
     // MARK: - #sequencing
-    indirect case sequence(Expression, Expression)
+    indirect case sequence(first: Expression, second: Expression)
 
     // MARK: - #references
     indirect case ref(Expression)
     indirect case deref(Expression)
-    indirect case assign(Expression, Expression)
+    indirect case assign(variable: Expression, assignee: Expression)
     case constMemory(MemoryAddress)
     
     // MARK: - #panic
     case panic
     
     // MARK: - #exceptions
-    indirect case `throw`(Expression)
-    indirect case tryWith(Expression, Expression)
-    indirect case tryCatch(Expression, Pattern, Expression)
+    indirect case `throw`(exception: Expression)
+    indirect case tryWith(attempted: Expression, fallback: Expression)
+    indirect case tryCatch(attempted: Expression, pattern: Pattern, handler: Expression)
     
     // MARK: - #type-cast
     indirect case typeCast(Expression, RawType)

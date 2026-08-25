@@ -41,12 +41,6 @@ extension Program: CustomStringConvertible {
     }
 }
 
-extension Declaration.Parameter: CustomStringConvertible {
-    var description: String {
-        "\(name) : \(type)"
-    }
-}
-
 private func functionReturnAndBody(
     _ returnType: RawType?,
     _ throwTypes: [RawType],
@@ -61,7 +55,7 @@ private func functionReturnAndBody(
 
     let bodyDecls = declarations.lazy
         .map { "\($0)" + "\n" }
-        .joined()
+        .joined(separator: "")
     let bodyString = "\(bodyDecls)\(returnString)"
 
     return """
@@ -75,21 +69,26 @@ extension Declaration: CustomStringConvertible {
     var description: String {
         switch self {
         case .exceptionType(let type):
-            "exception type = \(type)"
+            return "exception type = \(type)"
 
         case .exceptionVariant(let name, let type):
-            "exception variant \(name) : \(type)"
-            
-        case let .function(name, parameters, returnType, throwTypes, declarations, returnExpression):
-            """
-            fn \(name)(\(parameters.map(\.description).joined(separator: ", "))) \
-            \(functionReturnAndBody(returnType, throwTypes, declarations, returnExpression))
-            """
-            
-        case let .genericFunction(name, typeVariables, parameters, returnType, throwTypes, declarations, returnExpression):
-            """
-            generic fn \(name)[\(typeVariables.map(\.description).joined(separator: ", "))]\
-            (\(parameters.map(\.description).joined(separator: ", "))) \
+            return "exception variant \(name) : \(type)"
+
+        case .function(
+            let name,
+            let typeVariables,
+            let parameters,
+            let returnType,
+            let throwTypes,
+            let declarations,
+            let returnExpression
+        ):
+            let typeVariables = typeVariables.map(\.description).joined(separator: ", ")
+
+            return """
+            \(typeVariables.isEmpty ? "" : "generic ")\
+            fn \(name)\(typeVariables.isEmpty ? "" : "[\(typeVariables)]")\
+            (\(parameters.map({"\($0.name): \($0.type)"}).joined(separator: ", "))) \
             \(functionReturnAndBody(returnType, throwTypes, declarations, returnExpression))
             """
         }
