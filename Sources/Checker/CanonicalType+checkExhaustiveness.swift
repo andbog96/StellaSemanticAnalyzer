@@ -1,4 +1,4 @@
-private let wildcard = Pattern.var § Name(value: "__something__")
+private let wildcard = Pattern.var § Name(value: "_")
 
 extension CanonicalType {
     func checkExhaustiveness(of patterns: some Sequence<Pattern>) throws(ExhaustivenessError) {

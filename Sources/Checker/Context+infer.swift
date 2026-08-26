@@ -7,8 +7,8 @@ extension Context {
             
         case .abstraction(let parameters, let returnExpression):
             let functionParameters = try (
-                parameters.lazy.canonized() |> Function.Parameters.init(from:) <!> { error in
-                    CanonizeError.contextError(error, in: .lambda(
+                parameters.lazy.canonized() |> Function.Parameters.init(from:) <!> {
+                    CanonizeError.contextError($0, in: .lambda(
                         parameters: parameters,
                         returnExpression: returnExpression
                     ))
@@ -59,8 +59,8 @@ extension Context {
                 let thenType = try infer(then)
                 let elseType = try infer(`else`)
 
-                return try thenType.unify(with: elseType) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                return try unify(actual: thenType, expected: elseType) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
             } else {
                 let thenType = try infer(then)
@@ -96,13 +96,14 @@ extension Context {
             if extensions.contains(.typeReconstruction) {
                 let stepType = try infer(step)
 
-                _ = try stepType.unify(
-                    with: .function(
+                _ = try unify(
+                    actual: stepType,
+                    expected: .function(
                         from: [.nat],
                         to: .function(from: [zeroType], to: zeroType)
                     )
-                ) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                ) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
             } else {
                 try check(step, against: .function(
@@ -169,7 +170,7 @@ extension Context {
             for (pattern, value) in cases {
                 let valueType = try localContext.infer(value)
 
-                let bindings = try pattern.match(against: valueType) <!> TypeCheckError.patternError
+                let bindings = try match(pattern, against: valueType) <!> TypeCheckError.patternError
                 localContext.data.overlay(by: bindings)
 
                 let duplicateBindings = usedBindings.intersection(bindings.names)
@@ -201,7 +202,7 @@ extension Context {
 
             var localContext = self
 
-            let bindings = try subpattern.match(against: valueType) <!> TypeCheckError.patternError
+            let bindings = try match(subpattern, against: valueType) <!> TypeCheckError.patternError
             localContext.data.overlay(by: bindings)
 
             try localContext.check(value, against: valueType)
@@ -235,14 +236,14 @@ extension Context {
                 let caseTypes = try cases.lazy.map { pattern, value throws(TypeCheckError) in
                     var localContext = self
 
-                    let bindings = try pattern.match(against: matchedType) <!> TypeCheckError.patternError
+                    let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError
                     localContext.data.overlay(by: bindings)
 
                     return try localContext.infer(value)
                 }
 
-                let unifiedType = try caseTypes.foldLeft(CanonicalType.unify) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                let unifiedType = try caseTypes.fold(unify(actual:expected:)) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
 
                 guard let unifiedType else {
@@ -263,7 +264,7 @@ extension Context {
 
                 var localContext = self
 
-                let bindings = try firstCase.pattern.match(against: matchedType) <!> TypeCheckError.patternError
+                let bindings = try match(firstCase.pattern, against: matchedType) <!> TypeCheckError.patternError
                 localContext.data.overlay(by: bindings)
 
                 let firstType = try localContext.infer(firstCase.value)
@@ -271,7 +272,7 @@ extension Context {
                 for (pattern, value) in cases.dropFirst() {
                     var localContext = self
 
-                    let bindings = try pattern.match(against: matchedType) <!> TypeCheckError.patternError
+                    let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError
                     localContext.data.overlay(by: bindings)
 
                     try localContext.check(value, against: firstType)
@@ -285,8 +286,8 @@ extension Context {
             if extensions.contains(.typeReconstruction) {
                 let types = try elements.lazy.map(infer)
 
-                let unifiedType = try types.foldLeft(CanonicalType.unify) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                let unifiedType = try types.fold(unify(actual:expected:)) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
 
                 guard let unifiedType else {
@@ -313,8 +314,8 @@ extension Context {
                 let headType = try infer(head)
                 let tailType = try infer(tail)
 
-                return try .list(headType).unify(with: tailType) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                return try unify(actual: .list(headType), expected: tailType) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
             } else {
                 let headType = try infer(head)
@@ -372,16 +373,8 @@ extension Context {
                 throw .notAFunction(actual: parameter, in: copy expression)
             }
 
-            if extensions.contains(.typeReconstruction) {
-                return try parameter.unify(with: result) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
-            } else {
-                guard parameter == result else {
-                    throw .unexpectedType(actual: parameter, expected: result, for: generator)
-                }
-
-                return parameter
+            return try unify(actual: parameter, expected: result) <!> {
+                TypeCheckError.unifyError($0, in: copy expression)
             }
 
         // MARK: - #sequencing
@@ -436,8 +429,8 @@ extension Context {
             if extensions.contains(.typeReconstruction) {
                 let fallbackType = try infer(fallback)
 
-                return try attemptedType.unify(with: fallbackType) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                return try unify(actual: attemptedType, expected: fallbackType) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
             } else {
                 try check(fallback, against: attemptedType)
@@ -454,14 +447,14 @@ extension Context {
 
             var localContext = self
 
-            let bindings = try pattern.match(against: exceptionType) <!> TypeCheckError.patternError
+            let bindings = try match(pattern, against: exceptionType) <!> TypeCheckError.patternError
             localContext.data.overlay(by: bindings)
 
             if extensions.contains(.typeReconstruction) {
                 let handlerType = try localContext.infer(handler)
 
-                return try attemptedType.unify(with: handlerType) <!> { error in
-                    TypeCheckError.unifyError(error, in: copy expression)
+                return try unify(actual: attemptedType, expected: handlerType) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
                 }
             } else {
                 try localContext.check(handler, against: attemptedType)

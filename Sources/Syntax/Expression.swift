@@ -20,11 +20,11 @@ enum Expression: Sendable {
     case constUnit
     
     // MARK: - #pairs, #tuples
-    indirect case tuple(elements: [Expression])
+    case tuple(elements: [Expression])
     indirect case dotTuple(Expression, index: Int)
 
     // MARK: - #records
-    indirect case record(fields: [(label: Name, expression: Expression)])
+    case record(fields: [(label: Name, expression: Expression)])
     indirect case dotRecord(Expression, label: Name)
 
     // MARK: - #let-patterns
@@ -45,7 +45,7 @@ enum Expression: Sendable {
     indirect case match(Expression, cases: [(pattern: Pattern, value: Expression)])
 
     // MARK: - #lists
-    indirect case list(elements: [Expression])
+    case list(elements: [Expression])
     indirect case cons(head: Expression, tail: Expression)
     indirect case head(list: Expression)
     indirect case tail(list: Expression)

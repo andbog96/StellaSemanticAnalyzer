@@ -17,7 +17,7 @@ extension Declaration {
     static func lambda(
         parameters: [(name: Name, type: RawType)],
         returnExpression: Expression
-    ) -> Declaration {
+    ) -> Self {
         .function(
             name: "",
             typeVariables: [],

@@ -3,7 +3,6 @@ enum TypeCheckError: Error {
     
     case missingMain
     case undefinedVariable(Name)
-    case unexpectedType(actual: CanonicalType, expected: CanonicalType, for: Expression)
 
     case notAFunction(actual: CanonicalType, in: Expression)
     case notATuple(actual: CanonicalType, in: Expression)
@@ -83,7 +82,6 @@ extension TypeCheckError {
             
         case .missingMain: "ERROR_MISSING_MAIN"
         case .undefinedVariable: "ERROR_UNDEFINED_VARIABLE"
-        case .unexpectedType: "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
         case .notAFunction: "ERROR_NOT_A_FUNCTION"
         case .notATuple: "ERROR_NOT_A_TUPLE"
         case .notARecord: "ERROR_NOT_A_RECORD"
@@ -135,10 +133,10 @@ extension TypeCheckError {
         case .canonizeError(.duplicateVariantTypeFields): "ERROR_DUPLICATE_VARIANT_TYPE_FIELDS"
             
         // MARK: - UnifyError
+        case .unifyError(.unexpectedType, _): "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
+
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).code
-        case .unifyError(.unexpectedType(let actual, let expected), let expression):
-            Self.unexpectedType(actual: actual, expected: expected, for: expression).code
 
         // MARK: - PatternMatchError
         case .patternError(.unexpectedPattern): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
@@ -166,13 +164,6 @@ extension TypeCheckError {
             "main function must have one and only one parameter, instead it has \(n)"
         case let .undefinedVariable(name):
             "Undefined variable: \(name)"
-        case .unexpectedType(let actual, let expected, let expression):
-            """
-            Expected type: \(expected)
-            Instead have: \(actual)
-            In expression: 
-                \(indented: expression)
-            """
         case let .notAFunction(actualType, in: expression):
             """
             Expression is expected to have a function type
@@ -436,10 +427,15 @@ extension TypeCheckError {
             """
             
         // MARK: - UnifyError
+        case .unifyError(.unexpectedType(let actual, let expected), let expression):
+            """
+            Expected type: \(expected)
+            Instead have: \(actual)
+            In expression: 
+                \(indented: expression)
+            """
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
-        case .unifyError(.unexpectedType(let actual, let expected), let expression):
-            Self.unexpectedType(actual: actual, expected: expected, for: expression).message
 
         // MARK: - PatternMatchError
         case .patternError(.unexpectedPattern(let pattern, let type)):

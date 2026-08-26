@@ -26,7 +26,7 @@ extension Program: StaticParsable {
         }
         .many
         .map {
-            $0.foldLeft(Set<Extension>.union) ?? []
+            $0.fold(Set<Extension>.union) ?? []
         }
         <?> "extension declaration"
         

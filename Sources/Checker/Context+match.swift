@@ -1,6 +1,9 @@
-extension Pattern {
-    consuming func match(against type: consuming CanonicalType) throws(PatternError) -> TypeData {
-        switch (self, type) {
+extension Context {
+    func match(
+        _ pattern: consuming Pattern,
+        against type: consuming CanonicalType
+    ) throws(PatternError) -> TypeData {
+        switch (pattern, type) {
         // MARK: - var
         case (.var(let name), _):
             return TypeData(name: name, type: type)
@@ -15,7 +18,7 @@ extension Pattern {
             return nil
 
         case (.succ(let pattern), .nat):
-            return try pattern.match(against: .nat)
+            return try match(pattern, against: .nat)
 
         // MARK: - Unit
         case (.unit, .unit):
@@ -26,9 +29,9 @@ extension Pattern {
             where patterns.count == types.count:
             return try zip(patterns, types)
                 .map { pattern, type throws(PatternError) in
-                    try pattern.match(against: type)
+                    try match(pattern, against: type)
                 }
-                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
         // MARK: - record
         case (.record(let patterns), .record(let types))
@@ -39,29 +42,29 @@ extension Pattern {
                     (key: $0.label, value: $0.pattern)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
-                    PatternError.duplicateRecordPatternFields(duplicates, in: self)
+                    PatternError.duplicateRecordPatternFields(duplicates, in: pattern)
                 }
             )
 
             return try patterns
                 .map { label, pattern throws(PatternError) in
                     guard let type = types[label] else {
-                        throw .unexpectedPattern(self, for: type)
+                        throw .unexpectedPattern(.record(fields: [(label: label, pattern: pattern)]), for: type)
                     }
 
-                    return try pattern.match(against: type)
+                    return try match(pattern, against: type)
                 }
-                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
         // MARK: - sum
         case (.inl(let pattern), .sum(let type, _)),
              (.inr(let pattern), .sum(_, let type)):
-            return try pattern.match(against: type)
+            return try match(pattern, against: type)
 
         // MARK: - Variant
         case (.variant(let label, let payloadPattern), .variant(let cases)):
             guard let caseType = cases[label] else {
-                throw .unexpectedPattern(self, for: type)
+                throw .unexpectedPattern(pattern, for: type)
             }
             
             switch (payloadPattern, caseType) {
@@ -71,7 +74,7 @@ extension Pattern {
                 throw .unexpectedNullaryVariantPattern(
                     name: label,
                     missed: payloadType,
-                    pattern: self,
+                    pattern: pattern,
                     type: type
                 )
             case (let payloadPattern?, nil):
@@ -81,42 +84,47 @@ extension Pattern {
                     type: type
                 )
             case (let payloadPattern?, let payloadType?):
-                return try payloadPattern.match(against: payloadType)
+                return try match(payloadPattern, against: payloadType)
             }
 
         // MARK: - List
         case (.list(let patterns), .list(let elementType)):
             return try patterns
                 .map { pattern throws(PatternError) in
-                    try pattern.match(against: elementType)
+                    try match(pattern, against: elementType)
                 }
-                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
+                .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
         case (.cons(let headPattern, let tailPattern), .list(let elementType)):
             return try CollectionOfTwo(
-                try headPattern.match(against: elementType),
-                try tailPattern.match(against: .list(elementType))
+                try match(headPattern, against: elementType),
+                try match(tailPattern, against: .list(elementType))
             )
-            .fold(rejectingDuplicateNamesWith: duplicateLetBindingError)
+            .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
-        // MARK: - cast, as
-        case (.cast(let pattern, let castType), _),
-             (.ascription(let pattern, let castType), _):
+        // MARK: - as, cast
+        case (.ascription(let pattern, let castType), _):
             let castType = try CanonicalType(from: castType) <!> PatternError.canonizeError
             
-            guard let type = try? castType.unify(with: type) else {
-                throw .unexpectedPattern(self, for: type)
+            try unify(actual: castType, expected: type) <!> { (_: UnifyError) in
+                PatternError.unexpectedPattern(pattern, for: type)
             }
 
-            return try pattern.match(against: type)
+            return try match(pattern, against: castType)
+
+        case (.cast(let pattern, let castType), _):
+            return nil // TODO
+
 
         default:
-            throw .unexpectedPattern(self, for: type)
+            throw .unexpectedPattern(pattern, for: type)
         }
     }
 
-    private func duplicateLetBindingError(_ duplicates: [Name]) -> PatternError {
-        .duplicateLetBinding(duplicates, in: self)
+    private func duplicateLetBindingError(in pattern: Pattern) -> (_ duplicates: [Name]) -> PatternError {
+        { duplicates in
+            .duplicateLetBinding(duplicates, in: pattern)
+        }
     }
 }
 

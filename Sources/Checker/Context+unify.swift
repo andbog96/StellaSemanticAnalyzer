@@ -1,10 +1,14 @@
-extension CanonicalType {
-    func unify(with expected: CanonicalType) throws(UnifyError) -> CanonicalType {
-        guard self != expected else {
-            return self
+extension Context {
+    func unify(actual: CanonicalType, expected: CanonicalType) throws(UnifyError) -> CanonicalType {
+        guard extensions.contains(.typeReconstruction) else {
+            guard actual == expected else {
+                throw .unexpectedType(actual: actual, expected: expected)
+            }
+
+            return actual
         }
         
-        let unexpectedTypeError = UnifyError.unexpectedType(actual: self, expected: expected)
+        let unexpectedTypeError = UnifyError.unexpectedType(actual: actual, expected: expected)
         throw unexpectedTypeError
 
 //        switch (self, expected) {

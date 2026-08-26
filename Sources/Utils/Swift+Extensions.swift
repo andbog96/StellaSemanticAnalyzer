@@ -34,8 +34,16 @@ extension Sequence {
 //        return result
 //    }
     
-    func foldLeft<E: Error>(
+    func fold<E: Error>(
         _ nextPartialResult: (_ result: Element) -> (_ next: Element) throws(E) -> Element
+    ) throws(E) -> Element? {
+        try fold { result, next throws(E) in
+            try nextPartialResult(result)(next)
+        }
+    }
+    
+    func fold<E: Error>(
+        _ nextPartialResult: (_ result: Element, _ next: Element) throws(E) -> Element
     ) throws(E) -> Element? {
         var iterator = makeIterator()
 
@@ -44,7 +52,7 @@ extension Sequence {
         }
 
         while let element = iterator.next() {
-            result = try nextPartialResult(result)(element)
+            result = try nextPartialResult(result, element)
         }
 
         return result
