@@ -31,9 +31,9 @@ enum TypeCheckError: Error {
     case tupleIndexOutOfBounds(index: Int, type: CanonicalType, in: Expression)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType, in: Expression)
 
-    case ambiguosSumType(in: Expression)
-    case ambiguosVariantType(in: Expression)
-    case ambiguosList(in: Expression)
+    case ambiguousSumType(in: Expression)
+    case ambiguousVariantType(in: Expression)
+    case ambiguousListType(in: Expression)
 
     case illegalEmptyMatch(in: Expression)
     case nonexhaustiveLetPatterns(for: Expression, missing: [Pattern])
@@ -97,9 +97,9 @@ extension TypeCheckError {
         case .unexpectedVariantLabel: "ERROR_UNEXPECTED_VARIANT_LABEL"
         case .tupleIndexOutOfBounds: "ERROR_TUPLE_INDEX_OUT_OF_BOUNDS"
         case .unexpectedTupleLength: "ERROR_UNEXPECTED_TUPLE_LENGTH"
-        case .ambiguosSumType: "ERROR_AMBIGUOUS_SUM_TYPE"
-        case .ambiguosVariantType: "ERROR_AMBIGUOUS_VARIANT_TYPE"
-        case .ambiguosList: "ERROR_AMBIGUOUS_LIST"
+        case .ambiguousSumType: "ERROR_AMBIGUOUS_SUM_TYPE"
+        case .ambiguousVariantType: "ERROR_AMBIGUOUS_VARIANT_TYPE"
+        case .ambiguousListType: "ERROR_AMBIGUOUS_LIST_TYPE"
         case .illegalEmptyMatch: "ERROR_ILLEGAL_EMPTY_MATCHING"
         case .nonexhaustiveLetPatterns: "ERROR_NONEXHAUSTIVE_LET_PATTERNS"
         case .nonexhaustiveMatchPatterns: "ERROR_NONEXHAUSTIVE_MATCH_PATTERNS"
@@ -266,7 +266,7 @@ extension TypeCheckError {
             Unexpected inl or inr tag: \(expression)
             Expected expression of type: \(expected)
             """
-        case let .ambiguosSumType(in: expression):
+        case let .ambiguousSumType(in: expression):
             """
             Cannot infer the other half of the sum type expression: \(expression)
             """
@@ -291,7 +291,7 @@ extension TypeCheckError {
             Expected expression of type: \(expected)
             Instead of a list: \(expression)
             """
-        case let .ambiguosList(in: expression):
+        case let .ambiguousListType(in: expression):
             """
             Cannot infer type of the list: \(expression)
             """
@@ -306,7 +306,7 @@ extension TypeCheckError {
             Expected expression of type: \(expected)
             Instead of a variant expresssion: \(expression)
             """
-        case let .ambiguosVariantType(in: expression):
+        case let .ambiguousVariantType(in: expression):
             """
             Cannot infer type of a variant expression: \(expression)
             """

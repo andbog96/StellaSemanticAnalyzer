@@ -180,18 +180,34 @@ extension Context {
             return ascribedType
 
         // MARK: - #sum-types
-        case .inl(let expression),
-             .inr(let expression):
-            _ = try infer(expression)
-            
-            throw .ambiguosSumType(in: copy expression)
+        case .inl(let left):
+            guard extensions.contains(.ambiguousTypeAsBottom) else {
+                throw .ambiguousSumType(in: copy expression)
+            }
+
+            let leftType = try infer(left)
+
+            return .sum(left: leftType, right: .bottom)
+
+        case .inr(let right):
+            guard extensions.contains(.ambiguousTypeAsBottom) else {
+                throw .ambiguousSumType(in: copy expression)
+            }
+
+            let rightType = try infer(right)
+
+            return .sum(left: .bottom, right: rightType)
 
         // MARK: - #variants
-        case .variant(_, let data):
-            _ = try data.map(infer)
-            
-            throw .ambiguosVariantType(in: copy expression)
-            
+        case .variant(let label, let data):
+            guard extensions.contains(.structuralSubtyping) else {
+                throw .ambiguousVariantType(in: copy expression)
+            }
+
+            let dataType = try data.map(infer)
+
+            return .variant(cases: [label: dataType])
+
         case .match(let matchedExpression, let cases):
             let matchContexts = try matchContexts(
                 matchedExpression: matchedExpression,
@@ -223,7 +239,11 @@ extension Context {
         // MARK: - #lists
         case .list(let elements):
             guard let elements = NonEmpty(rawValue: elements) else {
-                throw .ambiguosList(in: copy expression)
+                guard extensions.contains(.ambiguousTypeAsBottom) else {
+                    throw .ambiguousListType(in: copy expression)
+                }
+
+                return .list(.bottom)
             }
 
             if extensions.contains(.typeReconstruction) {
@@ -347,7 +367,11 @@ extension Context {
         
         // MARK: - #panic
         case .panic:
-            throw .ambiguousPanicType(in: copy expression)
+            guard extensions.contains(.ambiguousTypeAsBottom) else {
+                throw .ambiguousPanicType(in: copy expression)
+            }
+
+            return .bottom
 
         // MARK: - #exceptions
         case .throw(let exception):
@@ -356,8 +380,12 @@ extension Context {
             }
 
             try check(exception, against: exceptionType)
-            
-            throw .ambiguousThrowType(in: copy expression)
+
+            guard extensions.contains(.ambiguousTypeAsBottom) else {
+                throw .ambiguousThrowType(in: copy expression)
+            }
+
+            return .bottom
 
         case .tryWith(let attempted, let fallback):
             let attemptedType = try infer(attempted)

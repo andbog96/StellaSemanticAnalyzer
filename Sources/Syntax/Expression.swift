@@ -37,8 +37,8 @@ enum Expression: Sendable {
     indirect case typeAscription(value: Expression, asRawType: RawType)
 
     // MARK: - #sum-types
-    indirect case inl(sum: Expression)
-    indirect case inr(sum: Expression)
+    indirect case inl(left: Expression)
+    indirect case inr(right: Expression)
 
     // MARK: - #variants
     indirect case variant(Label, data: Expression?)
