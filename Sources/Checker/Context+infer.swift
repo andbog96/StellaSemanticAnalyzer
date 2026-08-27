@@ -454,8 +454,6 @@ private extension CanonicalType {
         case .sum(let left, let right): .sum(left: left.substituting(substitutions), right: right.substituting(substitutions))
         case .variant(let cases): .variant(cases: cases.mapValues { $0?.substituting(substitutions) })
         case .list(let element): .list(element.substituting(substitutions))
-        case .mu(let name, let type):
-            .mu(name, type.substituting(substitutions.filter { $0.key != name }))
         case .reference(let type): .reference(type.substituting(substitutions))
         case .forall(let variables, let type):
             .forall(variables: variables, type: type.substituting(substitutions.filter { !variables.contains($0.key) }))

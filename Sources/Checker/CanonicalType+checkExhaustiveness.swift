@@ -59,8 +59,7 @@ extension CanonicalType {
         case .list:
             return [.list([]), .cons(head: wildcard, tail: wildcard)]
 
-        case .mu,
-             .reference,
+        case .reference,
              .function,
              .variable,
              .top,

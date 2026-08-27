@@ -15,7 +15,6 @@ enum CanonicalType: Sendable, Equatable, Hashable {
 
     indirect case list(Self)
 
-    indirect case mu(Name, Self)
     indirect case reference(Self)
 
     case top
@@ -86,9 +85,6 @@ extension CanonicalType {
         
         case .list(let type):
             try .list(Self(from: type))
-        
-        case .mu(let name, let type):
-            try .mu(name, Self(from: type))
         
         case .reference(let type):
             try .reference(Self(from: type))

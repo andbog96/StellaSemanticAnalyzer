@@ -22,7 +22,7 @@ extension Expression {
         }
         .map { expr, nextExpr in
             guard let nextExpr else { return expr }
-            return .assign(variable: expr, assignee: nextExpr)
+            return .sequence(first: expr, second: nextExpr)
         } <?> "expresssion"
     }
 

@@ -14,7 +14,6 @@ enum RawType: Sendable {
 
     indirect case list(Self)
     
-    indirect case mu(Name, Self)
     indirect case reference(Self)
     
     case top

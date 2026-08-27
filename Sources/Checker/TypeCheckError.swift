@@ -58,7 +58,7 @@ enum TypeCheckError: Error {
     case unexpectedMemoryAddress(in: Expression)
     case unexpectedReference(expected: CanonicalType, in: Expression)
     
-    case unexpectedSubtype(CanonicalType, ofSupertype: CanonicalType, in: Expression)
+    case unexpectedSubtype(CanonicalType, ofExpectedSupertype: CanonicalType, in: Expression)
 
     case duplicateExceptionType
     case duplicateExceptionVariant(Label)

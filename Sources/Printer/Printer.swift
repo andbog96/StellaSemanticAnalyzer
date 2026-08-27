@@ -197,9 +197,6 @@ extension RawType: CustomStringConvertible {
         case .forall(let variables, let type):
             "forall \(variables.map(\.description).joined(separator: " ")). \(type)"
 
-         case .mu(let identifier, let type):
-             "µ \(identifier). \(type)"
-
         case .reference(let type):
             "&\(type.code(in: self))"
         }
@@ -287,9 +284,6 @@ extension CanonicalType: CustomStringConvertible {
 
         case .forall(let variables, let type):
             "forall \(variables.map(\.description).joined(separator: " ")). \(type)"
-
-         case .mu(let identifier, let type):
-             "µ \(identifier). \(type)"
 
         case .reference(let type):
             "&\(type.code(in: self))"
