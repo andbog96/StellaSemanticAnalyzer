@@ -8,10 +8,10 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case unit
 
     case tuple(elements: [Self])
-    case record(fields: [Name: Self])
+    case record(fields: [Label: Self])
 
     indirect case sum(left: Self, right: Self)
-    case variant(cases: [Name: Self?])
+    case variant(cases: [Label: Self?])
 
     indirect case list(Self)
 
@@ -56,8 +56,8 @@ extension CanonicalType {
         
         case .record(let fields):
             try Self.record(fields:) § Dictionary(
-                uniqueKeysWithValues: fields.lazy.map {
-                    (key: $0.label, value: $0.type)
+                uniqueKeysWithValues: fields.lazy.map { label, type in
+                    (key: label, value: type)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
                     CanonizeError.duplicateRecordTypeFields(duplicates, in: rawType)
@@ -73,8 +73,8 @@ extension CanonicalType {
         
         case .variant(let cases):
             try Self.variant(cases:) § Dictionary(
-                uniqueKeysWithValues: cases.lazy.map {
-                    (key: $0.label, value: $0.type)
+                uniqueKeysWithValues: cases.lazy.map { label, type in
+                    (key: label, value: type)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
                     CanonizeError.duplicateVariantTypeFields(duplicates, in: rawType)
@@ -114,19 +114,19 @@ extension CanonicalType {
     }
 }
 
-extension Sequence<(name: Name, type: RawType)> {
+extension Sequence<(name: Name, rawType: RawType)> {
     func canonized() throws(CanonizeError) -> some Sequence<(name: Name, type: CanonicalType)> {
-        try map { parameter throws(CanonizeError) in
+        try map { name, rawType throws(CanonizeError) in
             (
-                name: parameter.name,
-                type: try CanonicalType(from: parameter.type)
+                name: name,
+                type: try CanonicalType(from: rawType)
             )
         }
     }
 }
 
 extension Function.Parameters {
-    init(from parameters: some Sequence<(name: Name, type: CanonicalType)>) throws(ContextError) {
+    init(from parameters: some Sequence<(name: Name, type: CanonicalType)>) throws(ParametersError) {
         self = OrderedDictionary(minimumCapacity: parameters.underestimatedCount)
 
         for parameter in parameters {
@@ -141,13 +141,13 @@ enum CanonizeError: Error {
     case unsupported(code: String? = nil, message: String? = nil)
     
     case duplicateFunctionDeclaration(Name)
-    case duplicateTypeParameters([Name], in: Declaration)
-    case duplicateRecordTypeFields([Name], in: RawType)
-    case duplicateVariantTypeFields([Name], in: RawType)
-    
-    case contextError(ContextError, in: Declaration)
+    case duplicateRecordTypeFields([Label], in: RawType)
+    case duplicateVariantTypeFields([Label], in: RawType)
+
+    case parametersError(ParametersError, in: Declaration)
 }
 
-enum ContextError: Error {
+enum ParametersError: Error {
     case duplicateFunctionParameter(Name)
+    case duplicateTypeParameter([Name])
 }

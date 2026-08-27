@@ -69,7 +69,7 @@ func call<T, R>(
 func tupleOrRecordContents<T>(
     using stuffParser: Parser<T>,
     forTuple tupleMap: @escaping ([T]) -> T,
-    forRecord recordMap: @escaping ([(Name, T)]) -> T,
+    forRecord recordMap: @escaping ([(Label, T)]) -> T,
     recordFieldSeparator: Sign = .equals,
     descriptionSuffix: String = "",
 ) -> Parser<T> {
@@ -78,7 +78,7 @@ func tupleOrRecordContents<T>(
 
     // try to parse an identifier with a record field separator first
     rule {
-        Name.self
+        Label.self
         recordFieldSeparator
     }
     .attempt
@@ -90,7 +90,7 @@ func tupleOrRecordContents<T>(
             stuffParser
             rule {
                 Sign.comma // end of the previous field
-                Name.self
+                Label.self
                 recordFieldSeparator
                 stuffParser
             }.many

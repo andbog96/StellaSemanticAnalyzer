@@ -38,8 +38,8 @@ extension Context {
             where patterns.count == types.count:
             
             let patterns = try Dictionary(
-                uniqueKeysWithValues: patterns.lazy.map {
-                    (key: $0.label, value: $0.pattern)
+                uniqueKeysWithValues: patterns.lazy.map { label, pattern in
+                    (key: label, value: pattern)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
                     PatternError.duplicateRecordPatternFields(duplicates, in: pattern)
@@ -71,18 +71,9 @@ extension Context {
             case (nil, nil):
                 return nil
             case (nil, let payloadType?):
-                throw .unexpectedNullaryVariantPattern(
-                    name: label,
-                    missed: payloadType,
-                    pattern: pattern,
-                    type: type
-                )
+                throw .unexpectedNullaryVariantPattern(label, expected: payloadType, pattern, in: type)
             case (let payloadPattern?, nil):
-                throw .unexpectedNonNullaryVariantPattern(
-                    name: label,
-                    pattern: payloadPattern,
-                    type: type
-                )
+                throw .unexpectedNonNullaryVariantPattern(label, payloadPattern, in: type)
             case (let payloadPattern?, let payloadType?):
                 return try match(payloadPattern, against: payloadType)
             }
@@ -132,9 +123,9 @@ enum PatternError: Error {
     case unexpectedPattern(Pattern, for: CanonicalType)
 
     case duplicateLetBinding([Name], in: Pattern)
-    case duplicateRecordPatternFields([Name], in: Pattern)
-    case unexpectedNonNullaryVariantPattern(name: Name, pattern: Pattern, type: CanonicalType)
-    case unexpectedNullaryVariantPattern(name: Name, missed: CanonicalType, pattern: Pattern, type: CanonicalType)
+    case duplicateRecordPatternFields([Label], in: Pattern)
+    case unexpectedNonNullaryVariantPattern(Label, Pattern, in: CanonicalType)
+    case unexpectedNullaryVariantPattern(Label, expected: CanonicalType, Pattern, in: CanonicalType)
 
     case canonizeError(CanonizeError)
 }

@@ -4,6 +4,12 @@ extension Name: CustomStringConvertible {
     }
 }
 
+extension Label: CustomStringConvertible {
+    var description: String {
+        value
+    }
+}
+
 extension DefaultStringInterpolation {
     /// https://forums.swift.org/t/multi-line-string-nested-indentation-with-interpolation/36933
     mutating func appendInterpolation(indented string: CustomStringConvertible) {
@@ -88,7 +94,7 @@ extension Declaration: CustomStringConvertible {
             return """
             \(typeVariables.isEmpty ? "" : "generic ")\
             fn \(name)\(typeVariables.isEmpty ? "" : "[\(typeVariables)]")\
-            (\(parameters.map({"\($0.name): \($0.type)"}).joined(separator: ", "))) \
+            (\(parameters.map({"\($0.name): \($0.rawType)"}).joined(separator: ", "))) \
             \(functionReturnAndBody(returnType, throwTypes, declarations, returnExpression))
             """
         }
@@ -200,7 +206,7 @@ extension RawType: CustomStringConvertible {
     }
 }
 
-private func fieldDecl(for label: Name, and type: some CustomStringConvertible?) -> String {
+private func fieldDecl(for label: Label, and type: some CustomStringConvertible?) -> String {
     guard let type else {
         return label.value
     }

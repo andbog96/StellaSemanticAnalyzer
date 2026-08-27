@@ -33,25 +33,23 @@ extension Sequence {
 //        
 //        return result
 //    }
-    
+}
+
+extension NonEmpty {
     func fold<E: Error>(
         _ nextPartialResult: (_ result: Element) -> (_ next: Element) throws(E) -> Element
-    ) throws(E) -> Element? {
+    ) throws(E) -> Element {
         try fold { result, next throws(E) in
             try nextPartialResult(result)(next)
         }
     }
-    
+
     func fold<E: Error>(
         _ nextPartialResult: (_ result: Element, _ next: Element) throws(E) -> Element
-    ) throws(E) -> Element? {
-        var iterator = makeIterator()
+    ) throws(E) -> Element {
+        var result = first
 
-        guard var result = iterator.next() else {
-            return nil
-        }
-
-        while let element = iterator.next() {
+        for element in dropFirst() {
             result = try nextPartialResult(result, element)
         }
 
@@ -59,27 +57,26 @@ extension Sequence {
     }
 }
 
-extension Sequence where Element: Hashable {
-    func uniqued<E: Error>(
+extension OrderedSet {
+    init<E: Error>(
+        _ elements: some Sequence<Element>,
         rejectingDuplicatesWith duplicatesError: (_ duplicates: [Element]) -> E
-    ) throws(E) -> Self {
-        var seen = [] as Set<Element>
+    ) throws(E) {
+        self = []
 
-        let duplicates = Array.init § OrderedSet.init § filter {
-            !seen.insert($0).inserted
+        let duplicates = Array.init § OrderedSet.init § elements.filter {
+            !append($0).inserted
         }
 
         guard duplicates.isEmpty else {
             throw duplicatesError(duplicates)
         }
-
-        return self
     }
 }
 
 extension Dictionary {
     init<E: Error>(
-        uniqueKeysWithValues keysAndValues: some Sequence<(Key, Value)>,
+        uniqueKeysWithValues keysAndValues: some Sequence<(key: Key, value: Value)>,
         rejectingDuplicateKeysWith duplicateKeysError: (_ duplicateKeys: [Key]) -> E
     ) throws(E) {
         self = [Key: Value](minimumCapacity: keysAndValues.underestimatedCount)

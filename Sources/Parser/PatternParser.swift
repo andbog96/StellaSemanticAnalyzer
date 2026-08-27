@@ -50,19 +50,19 @@ extension Pattern: StaticParsable {
                 Keyword.cast
                 Keyword.as
                 RawType.self
-            }.map { type in { Self.cast($0, type) } } <?> "cast"
+            }.map { type in { Self.cast($0, asType: type) } } <?> "cast"
         ),
         .postfix(
             rule {
                 Keyword.as
                 RawType.self
-            }.map { type in { Self.ascription($0, type) } } <?> "ascription"
+            }.map { type in { Self.ascription($0, asType: type) } } <?> "ascription"
         )
     ]]
 
     static func variant(using thisParser: Parser<Self>) -> Parser<Self> {
         rule {
-            Name.self
+            Label.self
             rule {
                 Sign.equals
                 thisParser

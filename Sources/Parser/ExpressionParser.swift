@@ -86,12 +86,12 @@ extension Expression {
     static func factor(using expression: ThisParser) -> ThisParser {
         .recursive { factor in
             alternatives {
-                call(of: .new, mapping: Self.ref, with: expression)
+                call(of: .new, mapping: Self.reference, with: expression)
                 rule { // here we can afford to call factor parser directly as it is
                     // prefixed by a star, no infinite recursion is possible
                     Sign.star
                     factor
-                }.map(Self.deref) <?> "dereference"
+                }.map(Self.dereference) <?> "dereference"
                 suffix(using: expression)
             }
         }
@@ -120,7 +120,7 @@ extension Expression {
             descriptionSuffix: " expression",
         ).inBraces
 
-        call(of: .new, mapping: ref, with: expression)
+        call(of: .new, mapping: reference, with: expression)
         call(of: .cons, mapping: cons) {
             expression
             Sign.comma

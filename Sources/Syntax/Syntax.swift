@@ -8,6 +8,10 @@ extension Name: Comparable {
     }
 }
 
+struct Label: Hashable {
+    var value: String
+}
+
 struct Program {
     var extensions: Set<Extension>
     var declarations: [Declaration]

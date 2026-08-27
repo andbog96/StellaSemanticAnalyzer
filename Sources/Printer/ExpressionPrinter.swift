@@ -16,8 +16,8 @@ private extension Expression {
              .match,
              .list:
             3
-        case .ref,
-             .deref:
+        case .reference,
+             .dereference:
             5
         case .application,
              .typeApplication,
@@ -72,7 +72,7 @@ private func patternBranch(pattern: Pattern, expr: Expression) -> String {
     "\(pattern) => \(expr)"
 }
 
-private func recordBinding(label: Name, expr: Expression) -> String {
+private func recordBinding(label: Label, expr: Expression) -> String {
     "\(label) = \(expr)"
 }
 
@@ -110,7 +110,7 @@ extension Expression: CustomStringConvertible {
             "\(expression.code(on: 3)) cast as \(type)"
         case .abstraction(let params, let expression):
             """
-            fn(\(params.map({"\($0.name): \($0.type)"}).joined(separator: ", "))) {
+            fn(\(params.map({ name, type in "\(name): \(type)"}).joined(separator: ", "))) {
                 return \(indented: expression)
             }
             """
@@ -124,9 +124,9 @@ extension Expression: CustomStringConvertible {
             """
         case .list(let array):
             "[\(array.map(\.description).joined(separator: ", "))]"
-        case .ref(let expression):
+        case .reference(let expression):
             "new(\(expression))"
-        case .deref(let expression):
+        case .dereference(let expression):
             "*\(expression.code(on: 5))"
         case .application(let callee, let arguments):
             "\(callee.code(on: 6))(\(arguments.map(\.description).joined(separator: ", ")))"

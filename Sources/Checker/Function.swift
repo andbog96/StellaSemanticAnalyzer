@@ -2,7 +2,7 @@ import Collections
 
 struct Function {
     var name: Name
-    var typeVariables: [Name]
+    var typeVariables: OrderedSet<Name>
     var parameters: Parameters
     var returnType: CanonicalType
     var nestedFunctions: Functions
@@ -29,13 +29,13 @@ extension Function {
 
             self.init(
                 name: name,
-                
-                typeVariables: try typeVariables.uniqued(rejectingDuplicatesWith: { duplicates in
-                    CanonizeError.duplicateTypeParameters(duplicates, in: copy declaration)
-                }) ,
 
-                parameters: try parameters.lazy.canonized() |> Parameters.init(from:) <!> { error in
-                    CanonizeError.contextError(error, in: copy declaration)
+                typeVariables: try OrderedSet(typeVariables, rejectingDuplicatesWith: ParametersError.duplicateTypeParameter) <!> {
+                    CanonizeError.parametersError($0, in: copy declaration)
+                },
+
+                parameters: try parameters.canonized() |> Parameters.init(from:) <!> {
+                    CanonizeError.parametersError($0, in: copy declaration)
                 },
                 
                 returnType: try returnType |> CanonicalType.init(from:),

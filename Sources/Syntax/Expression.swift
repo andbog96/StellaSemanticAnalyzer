@@ -1,7 +1,7 @@
 enum Expression: Sendable {
     // MARK: - STLC
     case `var`(Name)
-    indirect case abstraction(parameters: [(name: Name, type: RawType)], returnExpression: Expression)
+    indirect case abstraction(parameters: [(name: Name, rawType: RawType)], returnExpression: Expression)
     indirect case application(calle: Expression, arguments: [Expression])
     
     // MARK: - Bool
@@ -11,9 +11,9 @@ enum Expression: Sendable {
     
     // MARK: - Nat
     case constInt(Int)
-    indirect case succ(Expression)
-    indirect case pred(Expression)
-    indirect case isZero(Expression)
+    indirect case succ(n: Expression)
+    indirect case pred(n: Expression)
+    indirect case isZero(n: Expression)
     indirect case natRec(n: Expression, zero: Expression, step: Expression)
     
     // MARK: - #unit-type
@@ -24,24 +24,24 @@ enum Expression: Sendable {
     indirect case dotTuple(Expression, index: Int)
 
     // MARK: - #records
-    case record(fields: [(label: Name, expression: Expression)])
-    indirect case dotRecord(Expression, label: Name)
+    case record(fields: [(label: Label, value: Expression)])
+    indirect case dotRecord(Expression, Label)
 
     // MARK: - #let-patterns
-    indirect case `let`(cases: [(pattern: Pattern, value: Expression)], Expression)
+    indirect case `let`(cases: [(pattern: Pattern, value: Expression)], inExpression: Expression)
 
     // MARK: - #letrec-bindings
-    indirect case letrec([(pattern: Pattern, value: Expression)], Expression)
+    indirect case letrec(cases: [(pattern: Pattern, value: Expression)], inExpression: Expression)
 
     // MARK: - #type-ascriptions
-    indirect case typeAscription(Expression, RawType)
+    indirect case typeAscription(value: Expression, asRawType: RawType)
 
     // MARK: - #sum-types
-    indirect case inl(Expression)
-    indirect case inr(Expression)
+    indirect case inl(sum: Expression)
+    indirect case inr(sum: Expression)
 
     // MARK: - #variants
-    indirect case variant(label: Name, data: Expression?)
+    indirect case variant(Label, data: Expression?)
     indirect case match(Expression, cases: [(pattern: Pattern, value: Expression)])
 
     // MARK: - #lists
@@ -58,10 +58,10 @@ enum Expression: Sendable {
     indirect case sequence(first: Expression, second: Expression)
 
     // MARK: - #references
-    indirect case ref(Expression)
-    indirect case deref(Expression)
-    indirect case assign(variable: Expression, assignee: Expression)
     case constMemory(MemoryAddress)
+    indirect case reference(Expression)
+    indirect case dereference(Expression)
+    indirect case assign(variable: Expression, assignee: Expression)
     
     // MARK: - #panic
     case panic
@@ -69,14 +69,14 @@ enum Expression: Sendable {
     // MARK: - #exceptions
     indirect case `throw`(exception: Expression)
     indirect case tryWith(attempted: Expression, fallback: Expression)
-    indirect case tryCatch(attempted: Expression, pattern: Pattern, handler: Expression)
+    indirect case tryCatch(attempted: Expression, Pattern, handler: Expression)
     
     // MARK: - #type-cast
-    indirect case typeCast(Expression, RawType)
-    
+    indirect case typeCast(value: Expression, asRawType: RawType)
+
     // MARK: - #try-cast-as, #type-cast-patterns
-    indirect case tryCastAs(Expression, RawType, Pattern, Expression, with: Expression)
-    
+    indirect case tryCastAs(Expression, asRawType: RawType, Pattern, Expression, with: Expression)
+
     // MARK: - #universal-types
     indirect case typeAbstraction([Name], Expression)
     indirect case typeApplication(Expression, [RawType])

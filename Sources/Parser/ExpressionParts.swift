@@ -57,7 +57,7 @@ extension Expression: StaticParsable {
 
     static func variant(using thisParser: Parser<Self>) -> Parser<Self> {
         rule {
-            Name.self
+            Label.self
             rule {
                 Sign.equals
                 thisParser
@@ -105,7 +105,7 @@ extension Expression: StaticParsable {
                 }
                 .inBraces
             }
-            .map { tryCatch(attempted: tried, pattern: $0, handler: $1) } <?> "try catch expression"
+            .map { tryCatch(attempted: tried, $0, handler: $1) } <?> "try catch expression"
 
             rule {
                 Keyword.with
@@ -127,7 +127,7 @@ extension Expression: StaticParsable {
                 thisParser.inBraces
             }
             .map { (type, clause, expression) in
-                tryCastAs(tried, type, clause.0, clause.1, with: expression)
+                tryCastAs(tried, asRawType: type, clause.0, clause.1, with: expression)
             } <?> "`try cast with` expression"
         }}
     }
@@ -136,7 +136,7 @@ extension Expression: StaticParsable {
         Sign.dot.parser.flatMap { () in
             alternatives {
                 lexer.natural.map { number in { dotTuple ($0, index: number) } }
-                Name.map { attribute in { dotRecord($0, label: attribute) } }
+                Label.map { attribute in { dotRecord($0, attribute) } }
             }
         }
 
@@ -151,9 +151,9 @@ extension Expression: StaticParsable {
             .map { type in
                 {
                     if cast {
-                        typeCast($0, type)
+                        typeCast(value: $0, asRawType: type)
                     } else {
-                        typeAscription($0, type)
+                        typeAscription(value: $0, asRawType: type)
                     }
                 }
             } <?> "type \(cast ? "cast" : "ascription")"

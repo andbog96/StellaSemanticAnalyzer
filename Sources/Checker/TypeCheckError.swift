@@ -23,10 +23,10 @@ enum TypeCheckError: Error {
     case unexpectedList(expected: CanonicalType, in: Expression)
     case unexpectedInjection(expected: CanonicalType, in: Expression)
 
-    case missingRecordFields(fields: [Name], type: CanonicalType, in: Expression)
-    case unexpectedRecordFields(fields: [Name], type: CanonicalType, in: Expression)
-    case unexpectedFieldAccess(field: Name, type: CanonicalType, in: Expression)
-    case unexpectedVariantLabel(label: Name, expected: CanonicalType, in: Expression)
+    case missingRecordFields([Label], for: CanonicalType, in: Expression)
+    case unexpectedRecordFields([Label], for: CanonicalType, in: Expression)
+    case unexpectedFieldAccess(Label, type: CanonicalType, in: Expression)
+    case unexpectedVariantLabel(Label, for: CanonicalType, in: Expression)
 
     case tupleIndexOutOfBounds(index: Int, type: CanonicalType, in: Expression)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType, in: Expression)
@@ -39,16 +39,15 @@ enum TypeCheckError: Error {
     case nonexhaustiveLetPatterns(for: Expression, missing: [Pattern])
     case nonexhaustiveMatchPatterns(for: Expression, missing: [Pattern])
 
-    case duplicateRecordFields([Name], in: Expression)
+    case duplicateRecordFields([Label], in: Expression)
 
     case incorrectMainArity(Int)
     case incorrectArgumentsNumber(actual: Int, expected: Int, type: CanonicalType, in: Expression)
     case unexpectedParametersNumber(actual: Int, expected: Int, type: CanonicalType, in: Expression)
 
-    case unexpectedDataForNullaryLabel(Name, expected: CanonicalType, in: Expression)
-    case missingData(name: Name, type: CanonicalType, expected: CanonicalType, in: Expression)
-    
-    // Этап 2
+    case unexpectedData(for: Label, expected: CanonicalType, in: Expression)
+    case missingData(for: Label, type: CanonicalType, expected: CanonicalType, in: Expression)
+
     case exceptionTypeNotDeclared(in: Expression)
     case ambiguousThrowType(in: Expression)
     
@@ -60,10 +59,9 @@ enum TypeCheckError: Error {
     case unexpectedReference(expected: CanonicalType, in: Expression)
     
     case unexpectedSubtype(CanonicalType, ofSupertype: CanonicalType, in: Expression)
-    
-    // Этап 2, допы
+
     case duplicateExceptionType
-    case duplicateExceptionVariant(label: Name)
+    case duplicateExceptionVariant(Label)
     case conflictingExceptionDeclarations
     case illegalLocalExceptionType
     case illegalLocalOpenVariantException
@@ -109,7 +107,7 @@ extension TypeCheckError {
         case .incorrectMainArity: "ERROR_INCORRECT_ARITY_OF_MAIN"
         case .incorrectArgumentsNumber: "ERROR_INCORRECT_NUMBER_OF_ARGUMENTS"
         case .unexpectedParametersNumber: "ERROR_UNEXPECTED_NUMBER_OF_PARAMETERS_IN_LAMBDA"
-        case .unexpectedDataForNullaryLabel: "ERROR_UNEXPECTED_DATA_FOR_NULLARY_LABEL"
+        case .unexpectedData: "ERROR_UNEXPECTED_DATA_FOR_NULLARY_LABEL"
         case .missingData: "ERROR_MISSING_DATA_FOR_LABEL"
         case .exceptionTypeNotDeclared: "ERROR_EXCEPTION_TYPE_NOT_DECLARED"
         case .ambiguousThrowType: "ERROR_AMBIGUOUS_THROW_TYPE"
@@ -127,8 +125,8 @@ extension TypeCheckError {
             
         // MARK: - CanonizeError
         case .canonizeError(.duplicateFunctionDeclaration): "ERROR_DUPLICATE_FUNCTION_DECLARATION"
-        case .canonizeError(.duplicateTypeParameters): "ERROR_DUPLICATE_TYPE_PARAMETER"
-        case .canonizeError(.contextError(.duplicateFunctionParameter, _)): "ERROR_DUPLICATE_FUNCTION_PARAMETER"
+        case .canonizeError(.parametersError(.duplicateTypeParameter, _)): "ERROR_DUPLICATE_TYPE_PARAMETER"
+        case .canonizeError(.parametersError(.duplicateFunctionParameter, _)): "ERROR_DUPLICATE_FUNCTION_PARAMETER"
         case .canonizeError(.duplicateRecordTypeFields): "ERROR_DUPLICATE_RECORD_TYPE_FIELDS"
         case .canonizeError(.duplicateVariantTypeFields): "ERROR_DUPLICATE_VARIANT_TYPE_FIELDS"
             
@@ -325,9 +323,9 @@ extension TypeCheckError {
             was expected for a variant type: \(expected)
             In expression: \(expression)
             """
-        case let .unexpectedDataForNullaryLabel(name, expectedType, in: expression):
+        case .unexpectedData(let label, let expectedType, let expression):
             """
-            Null variant label: '\(name)' contains an expression, but it shouldn't
+            Null variant label: '\(label)' contains an expression, but it shouldn't
             for a variant of type: \(expectedType)
             In expresssion: \(expression)
             """
@@ -403,13 +401,13 @@ extension TypeCheckError {
             """
             Duplicate function declaration: \(id)
             """
-        case let .canonizeError(.duplicateTypeParameters(id, in: declaration)):
+        case .canonizeError(.parametersError(.duplicateTypeParameter(let id), let declaration)):
             """
             Duplicate type parameter: \(id)
             In declaration:
             \(declaration)
             """
-        case .canonizeError(.contextError(.duplicateFunctionParameter(let id), let declaration)):
+        case .canonizeError(.parametersError(.duplicateFunctionParameter(let id), let declaration)):
             """
             Duplicate function parameter: \(id)
             In declaration: 

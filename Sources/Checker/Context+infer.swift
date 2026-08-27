@@ -7,8 +7,8 @@ extension Context {
             
         case .abstraction(let parameters, let returnExpression):
             let functionParameters = try (
-                parameters.lazy.canonized() |> Function.Parameters.init(from:) <!> {
-                    CanonizeError.contextError($0, in: .lambda(
+                parameters.canonized() |> Function.Parameters.init(from:) <!> {
+                    CanonizeError.parametersError($0, in: .lambda(
                         parameters: parameters,
                         returnExpression: returnExpression
                     ))
@@ -140,8 +140,8 @@ extension Context {
         // MARK: - #records
         case .record(let fields):
             return try CanonicalType.record § Dictionary(
-                uniqueKeysWithValues: fields.lazy.map {
-                    (key: $0.label, value: $0.expression)
+                uniqueKeysWithValues: fields.lazy.map { label, value in
+                    (key: label, value: value)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
                     TypeCheckError.duplicateRecordFields(duplicates, in: copy expression)
@@ -157,64 +157,27 @@ extension Context {
             }
             
             guard let type = fields[label] else {
-                throw .unexpectedFieldAccess(field: label, type: recordType, in: copy expression)
+                throw .unexpectedFieldAccess(label, type: recordType, in: copy expression)
             }
 
             return type
 
         // MARK: - #let-patterns
         case .let(let cases, let inExpression):
-            var localContext = self
-            var usedBindings = [] as Set<Name>
-
-            for (pattern, value) in cases {
-                let valueType = try localContext.infer(value)
-
-                let bindings = try match(pattern, against: valueType) <!> TypeCheckError.patternError
-                localContext.data.overlay(by: bindings)
-
-                let duplicateBindings = usedBindings.intersection(bindings.names)
-                guard duplicateBindings.isEmpty else {
-                    throw .patternError(.duplicateLetBinding(Array(duplicateBindings), in: copy pattern))
-                }
-                usedBindings.formUnion(bindings.names)
-
-                do {
-                    try valueType.checkExhaustiveness(of: CollectionOfOne(pattern))
-                } catch {
-                    throw .nonexhaustiveLetPatterns(for: copy expression, missing: error.missingPatterns)
-                }
-            }
-
-            return try localContext.infer(inExpression)
+            return try letContext(from: cases, in: expression)
+                .infer(inExpression)
 
         // MARK: - #letrec-bindings
         case .letrec(let cases, let expression):
-            guard let (pattern, value) = cases.first else {
-                throw .unsupported(message: "#letrec-many-bindings is not supported")
-            }
-            
-            guard case .ascription(let subpattern, let rawType) = pattern else {
-                throw .unsupported(code: "ERROR_AMBIGUOUS_PATTERN_TYPE")
-            }
+            return try letrecContext(from: cases)
+                .infer(expression)
 
-            let valueType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
-
-            var localContext = self
-
-            let bindings = try match(subpattern, against: valueType) <!> TypeCheckError.patternError
-            localContext.data.overlay(by: bindings)
-
-            try localContext.check(value, against: valueType)
-
-            return try localContext.infer(expression)
-            
         // MARK: - #type-ascriptions
-        case .typeAscription(let expression, let rawType):
-            let type = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
-            try check(expression, against: type)
-            
-            return type
+        case .typeAscription(let value, let rawType):
+            let ascribedType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+            try check(value, against: ascribedType)
+
+            return ascribedType
 
         // MARK: - #sum-types
         case .inl(let expression),
@@ -230,51 +193,27 @@ extension Context {
             throw .ambiguosVariantType(in: copy expression)
             
         case .match(let matchedExpression, let cases):
-            let matchedType = try infer(matchedExpression)
+            let matchContexts = try matchContexts(
+                matchedExpression: matchedExpression,
+                cases: cases,
+                in: matchedExpression
+            )
 
             if extensions.contains(.typeReconstruction) {
-                let caseTypes = try cases.lazy.map { pattern, value throws(TypeCheckError) in
-                    var localContext = self
-
-                    let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError
-                    localContext.data.overlay(by: bindings)
-
-                    return try localContext.infer(value)
+                let caseTypes = try matchContexts.map { localContext, value throws(TypeCheckError) in
+                    try localContext.infer(value)
                 }
 
                 let unifiedType = try caseTypes.fold(unify(actual:expected:)) <!> {
                     TypeCheckError.unifyError($0, in: copy expression)
                 }
 
-                guard let unifiedType else {
-                    throw .illegalEmptyMatch(in: copy expression)
-                }
-
-                do {
-                    try matchedType.checkExhaustiveness(of: cases.lazy.map(\.pattern))
-                } catch {
-                    throw .nonexhaustiveMatchPatterns(for: copy expression, missing: error.missingPatterns)
-                }
-
                 return unifiedType
             } else {
-                guard let firstCase = cases.first else {
-                    throw .illegalEmptyMatch(in: copy expression)
-                }
+                let (localContext, value) = matchContexts.first
+                let firstType = try localContext.infer(value)
 
-                var localContext = self
-
-                let bindings = try match(firstCase.pattern, against: matchedType) <!> TypeCheckError.patternError
-                localContext.data.overlay(by: bindings)
-
-                let firstType = try localContext.infer(firstCase.value)
-
-                for (pattern, value) in cases.dropFirst() {
-                    var localContext = self
-
-                    let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError
-                    localContext.data.overlay(by: bindings)
-
+                for (localContext, value) in matchContexts.dropFirst() {
                     try localContext.check(value, against: firstType)
                 }
 
@@ -283,24 +222,20 @@ extension Context {
 
         // MARK: - #lists
         case .list(let elements):
+            guard let elements = NonEmpty(rawValue: elements) else {
+                throw .ambiguosList(in: copy expression)
+            }
+
             if extensions.contains(.typeReconstruction) {
-                let types = try elements.lazy.map(infer)
+                let types = try elements.map(infer)
 
                 let unifiedType = try types.fold(unify(actual:expected:)) <!> {
                     TypeCheckError.unifyError($0, in: copy expression)
                 }
 
-                guard let unifiedType else {
-                    throw .ambiguosList(in: copy expression)
-                }
-
                 return .list(unifiedType)
             } else {
-                guard let firstElement = elements.first else {
-                    throw .ambiguosList(in: copy expression)
-                }
-
-                let firstType = try infer(firstElement)
+                let firstType = try infer(elements.first)
 
                 for element in elements.dropFirst() {
                     try check(element, against: firstType)
@@ -384,10 +319,13 @@ extension Context {
             return try infer(second)
 
         // MARK: - #references
-        case .ref(let expression):
+        case .constMemory:
+            throw .ambiguousReferenceType(in: copy expression)
+
+        case .reference(let expression):
             return try .reference(infer(expression))
             
-        case .deref(let referenceExpression):
+        case .dereference(let referenceExpression):
             let referenceType = try infer(referenceExpression)
             
             guard case .reference(let type) = referenceType else {
@@ -406,16 +344,13 @@ extension Context {
             try check(assingee, against: type)
             
             return .unit
-
-        case .constMemory:
-            throw .ambiguousReferenceType(in: copy expression)
         
         // MARK: - #panic
         case .panic:
             throw .ambiguousPanicType(in: copy expression)
 
         // MARK: - #exceptions
-        case .`throw`(let exception):
+        case .throw(let exception):
             guard let exceptionType else {
                 throw .exceptionTypeNotDeclared(in: copy expression)
             }

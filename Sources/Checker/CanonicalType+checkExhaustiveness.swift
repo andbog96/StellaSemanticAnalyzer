@@ -1,7 +1,7 @@
 private let wildcard = Pattern.var § Name(value: "_")
 
 extension CanonicalType {
-    func checkExhaustiveness(of patterns: some Sequence<Pattern>) throws(ExhaustivenessError) {
+    func checkExhaustiveness(of patterns: NonEmpty<some Collection<Pattern>>) throws(ExhaustivenessError) {
         let missingPatterns = witnesses.filter { witness in
             !patterns.contains(where: witness.isCovered(by:))
         }
@@ -54,10 +54,10 @@ extension CanonicalType {
                         }
                     ?? [(label, nil)]
                 }
-                .map(Pattern.variant(label:pattern:))
+                .map(Pattern.variant)
 
         case .list:
-            return [.list([]), .cons(wildcard, wildcard)]
+            return [.list([]), .cons(head: wildcard, tail: wildcard)]
 
         case .mu,
              .reference,

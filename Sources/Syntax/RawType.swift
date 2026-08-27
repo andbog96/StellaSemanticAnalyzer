@@ -7,11 +7,11 @@ enum RawType: Sendable {
     case unit
 
     case tuple(elements: [Self])
-    case record(fields: [(label: Name, type: Self)])
-    
+    case record(fields: [(label: Label, rawType: Self)])
+
     indirect case sum(left: Self, right: Self)
-    case variant(cases: [(label: Name, type: Self?)])
-    
+    case variant(cases: [(label: Label, rawType: Self?)])
+
     indirect case list(Self)
     
     indirect case mu(Name, Self)
@@ -21,7 +21,7 @@ enum RawType: Sendable {
     case bottom
     
     case auto
-    indirect case forall(variables: [Name], type: Self)
+    indirect case forall(variables: [Name], rawType: Self)
 }
 //
 //extension RawType: Equatable {

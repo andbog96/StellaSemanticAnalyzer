@@ -39,7 +39,7 @@ extension RawType: StaticParsable {
 
         // <| a, b : bool, c : int |>
         let variant = rule { // `a: int` field for variant
-            Name.self
+            Label.self
             rule { // optional `: int`
                 Sign.colon
                 typeParser

@@ -9,15 +9,15 @@ enum Pattern: Sendable {
 
     case unit
     case tuple(elements: [Pattern])
-    case record(fields: [(label: Name, pattern: Pattern)])
+    case record(fields: [(label: Label, pattern: Pattern)])
 
     indirect case inl(Pattern)
     indirect case inr(Pattern)
-    indirect case variant(label: Name, pattern: Pattern?)
-    
+    indirect case variant(Label, Pattern?)
+
     case list([Pattern])
-    indirect case cons(Pattern, Pattern)
-    
-    indirect case cast(Pattern, RawType)
-    indirect case ascription(Pattern, RawType)
+    indirect case cons(head: Pattern, tail: Pattern)
+
+    indirect case cast(Pattern, asType: RawType)
+    indirect case ascription(Pattern, asType: RawType)
 }

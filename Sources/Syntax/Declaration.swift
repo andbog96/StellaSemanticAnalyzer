@@ -2,7 +2,7 @@ enum Declaration: Sendable {
     case function(
         name: Name,
         typeVariables: [Name],
-        parameters: [(name: Name, type: RawType)],
+        parameters: [(name: Name, rawType: RawType)],
         returnType: RawType?,
         throwTypes: [RawType],
         declarations: [Declaration],
@@ -10,12 +10,12 @@ enum Declaration: Sendable {
     )
     
     case exceptionType(RawType)
-    case exceptionVariant(label: Name, rawType: RawType)
+    case exceptionVariant(Label, RawType)
 }
 
 extension Declaration {
     static func lambda(
-        parameters: [(name: Name, type: RawType)],
+        parameters: [(name: Name, rawType: RawType)],
         returnExpression: Expression
     ) -> Self {
         .function(

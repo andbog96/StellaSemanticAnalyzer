@@ -26,7 +26,7 @@ extension Program: StaticParsable {
         }
         .many
         .map {
-            $0.fold(Set<Extension>.union) ?? []
+            NonEmpty(rawValue: $0)?.fold(Set<Extension>.union) ?? []
         }
         <?> "extension declaration"
         
@@ -36,6 +36,10 @@ extension Program: StaticParsable {
 }
 
 extension Name: StaticParsable {
+    static let parser: Parser<Self> = lexer.identifier.map(Self.init(value:))
+}
+
+extension Label: StaticParsable {
     static let parser: Parser<Self> = lexer.identifier.map(Self.init(value:))
 }
 
@@ -94,13 +98,13 @@ extension Declaration: StaticParsable {
         <?> "function"
     }
     
-    static let parameters: Parser<[(name: Name, type: RawType)]> = rule {
+    static let parameters: Parser<[(name: Name, rawType: RawType)]> = rule {
         Name.self
         Sign.colon
         RawType.self
     }
     .map {
-        (name: $0, type: $1)
+        (name: $0, rawType: $1)
     }
     .commaSeparated
     .inParens <?> "parameters"
@@ -135,7 +139,7 @@ extension Declaration: StaticParsable {
 
     static let exceptionVariant: Parser<Self> = rule {
         Keyword.variant
-        Name.self
+        Label.self
         Sign.colon
         RawType.self
     }.map(Self.exceptionVariant) <?> "exception variant"
