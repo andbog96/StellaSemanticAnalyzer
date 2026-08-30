@@ -49,7 +49,10 @@ extension Context {
             return try patterns
                 .map { label, pattern throws(PatternError) in
                     guard let type = types[label] else {
-                        throw .unexpectedPattern(.record(fields: [(label: label, pattern: pattern)]), for: type)
+                        throw .unexpectedPattern(
+                            .record(fields: [(label: label, pattern: pattern)]),
+                            for: type
+                        )
                     }
 
                     return try match(pattern, against: type)
@@ -70,10 +73,13 @@ extension Context {
             switch (payloadPattern, caseType) {
             case (nil, nil):
                 return nil
+
             case (nil, let payloadType?):
                 throw .unexpectedNullaryVariantPattern(label, expected: payloadType, pattern, in: type)
+
             case (let payloadPattern?, nil):
                 throw .unexpectedNonNullaryVariantPattern(label, payloadPattern, in: type)
+
             case (let payloadPattern?, let payloadType?):
                 return try match(payloadPattern, against: payloadType)
             }
@@ -94,18 +100,31 @@ extension Context {
             .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
         // MARK: - as, cast
-        case (.ascription(let pattern, let castType), _):
-            let castType = try CanonicalType(from: castType) <!> PatternError.canonizeError
-            
-            try unify(actual: castType, expected: type) <!> { (_: UnifyError) in
-                PatternError.unexpectedPattern(pattern, for: type)
+        case (.ascription(let pattern, let rawType), _):
+            let castType = try CanonicalType(from: rawType) <!> PatternError.canonizeError
+
+            if extensions.contains(.structuralSubtyping) {
+                try type.requireSubtype(of: castType) <!> PatternError.subtypeError
+            } else {
+                try unify(actual: castType, expected: type) <!> { (_: UnifyError) in
+                    PatternError.unexpectedPattern(pattern, for: type)
+                }
             }
 
             return try match(pattern, against: castType)
 
-        case (.cast(let pattern, let castType), _):
-            return nil // TODO
+        case (.cast(let pattern, let rawType), _):
+            let castType = try CanonicalType(from: rawType) <!> PatternError.canonizeError
 
+            guard type.isSubtypeComparable(with: castType) else {
+                throw .unexpectedPattern(pattern, for: type)
+            }
+
+            do {
+                return try match(pattern, against: castType)
+            } catch {
+                throw .unexpectedPattern(pattern, for: type)
+            }
 
         default:
             throw .unexpectedPattern(pattern, for: type)
@@ -128,4 +147,5 @@ enum PatternError: Error {
     case unexpectedNullaryVariantPattern(Label, expected: CanonicalType, Pattern, in: CanonicalType)
 
     case canonizeError(CanonizeError)
+    case subtypeError(SubtypeError)
 }

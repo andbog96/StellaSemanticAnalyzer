@@ -22,7 +22,7 @@ enum CanonicalType: Sendable, Equatable, Hashable {
 
     case auto
     case variable(Name)
-    indirect case forall(variables: [Name], type: Self)
+    indirect case forall(variables: [Name], body: Self)
 }
 
 extension CanonicalType {
@@ -104,7 +104,7 @@ extension CanonicalType {
         case .forall(let variables, let type):
             try .forall(
                 variables: variables,
-                type: Self(from: type)
+                body: Self(from: type)
             )
         }
     }
@@ -125,17 +125,18 @@ extension Function.Parameters {
     init(from parameters: some Sequence<(name: Name, type: CanonicalType)>) throws(ParametersError) {
         self = OrderedDictionary(minimumCapacity: parameters.underestimatedCount)
 
-        for parameter in parameters {
-            guard updateValue(parameter.type, forKey: parameter.name) == nil else {
-                throw .duplicateFunctionParameter(parameter.name)
+        for (name, type) in parameters {
+            guard updateValue(type, forKey: name) == nil else {
+                throw .duplicateFunctionParameter(name)
             }
         }
     }
 }
 
 enum CanonizeError: Error {
-    case unsupported(code: String? = nil, message: String? = nil)
-    
+    case unsupported(message: String)
+    case undefined(code: String)
+
     case duplicateFunctionDeclaration(Name)
     case duplicateRecordTypeFields([Label], in: RawType)
     case duplicateVariantTypeFields([Label], in: RawType)

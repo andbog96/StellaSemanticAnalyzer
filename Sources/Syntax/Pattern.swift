@@ -18,6 +18,6 @@ enum Pattern: Sendable {
     case list([Pattern])
     indirect case cons(head: Pattern, tail: Pattern)
 
-    indirect case cast(Pattern, asType: RawType)
-    indirect case ascription(Pattern, asType: RawType)
+    indirect case cast(Pattern, as: RawType)
+    indirect case ascription(Pattern, as: RawType)
 }

@@ -34,7 +34,7 @@ enum Expression: Sendable {
     indirect case letrec(cases: [(pattern: Pattern, value: Expression)], inExpression: Expression)
 
     // MARK: - #type-ascriptions
-    indirect case typeAscription(value: Expression, asRawType: RawType)
+    indirect case typeAscription(value: Expression, as: RawType)
 
     // MARK: - #sum-types
     indirect case inl(left: Expression)
@@ -42,7 +42,7 @@ enum Expression: Sendable {
 
     // MARK: - #variants
     indirect case variant(Label, data: Expression?)
-    indirect case match(Expression, cases: [(pattern: Pattern, value: Expression)])
+    indirect case match(value: Expression, cases: [(pattern: Pattern, value: Expression)])
 
     // MARK: - #lists
     case list(elements: [Expression])
@@ -69,17 +69,23 @@ enum Expression: Sendable {
     // MARK: - #exceptions
     indirect case `throw`(exception: Expression)
     indirect case tryWith(attempted: Expression, fallback: Expression)
-    indirect case tryCatch(attempted: Expression, Pattern, handler: Expression)
-    
+    indirect case tryCatch(attempted: Expression, pattern: Pattern, handler: Expression)
+
     // MARK: - #type-cast
-    indirect case typeCast(value: Expression, asRawType: RawType)
+    indirect case typeCast(value: Expression, as: RawType)
 
     // MARK: - #try-cast-as, #type-cast-patterns
-    indirect case tryCastAs(Expression, asRawType: RawType, Pattern, Expression, with: Expression)
+    indirect case tryCastAs(
+        value: Expression,
+        as: RawType,
+        pattern: Pattern,
+        handler: Expression,
+        fallback: Expression
+    )
 
     // MARK: - #universal-types
-    indirect case typeAbstraction([Name], Expression)
-    indirect case typeApplication(Expression, [RawType])
+    indirect case typeAbstraction(variables: [Name], body: Expression)
+    indirect case typeApplication(calle: Expression, parameters: [RawType])
 }
 
 //extension Expression: Equatable {

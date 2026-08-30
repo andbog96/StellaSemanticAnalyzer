@@ -46,7 +46,7 @@ extension Function {
             )
 
         case .function(_, _, _, returnType: nil, _, _, _):
-            throw CanonizeError.unsupported(code: "ERROR_MISSING_EXPLICIT_RETURN_TYPE")
+            throw CanonizeError.undefined(code: "ERROR_MISSING_EXPLICIT_RETURN_TYPE")
         
         case .exceptionType,
              .exceptionVariant:

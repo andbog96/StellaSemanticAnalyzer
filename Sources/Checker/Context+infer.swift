@@ -4,7 +4,7 @@ extension Context {
         // MARK: - STLC
         case .var(let name):
             return try data[name]
-            
+
         case .abstraction(let parameters, let returnExpression):
             let functionParameters = try (
                 parameters.canonized() |> Function.Parameters.init(from:) <!> {
@@ -16,22 +16,22 @@ extension Context {
             ) <!> TypeCheckError.canonizeError
 
             var localContext = self
-            localContext.data.overlay(by: functionParameters)
+            localContext.data.shadow(by: functionParameters)
 
             let returnType = try localContext.infer(returnExpression)
-            
+
             return .function(
                 from: Array.init § functionParameters.values,
                 to: returnType
             )
-            
+
         case .application(let callee, let arguments):
             let calleeType = try infer(callee)
-            
+
             guard case let .function(parameterTypes, returnType) = calleeType else {
                 throw .notAFunction(actual: calleeType, in: copy expression)
             }
-            
+
             guard arguments.count == parameterTypes.count else {
                 throw .incorrectArgumentsNumber(
                     actual: arguments.count,
@@ -40,18 +40,18 @@ extension Context {
                     in: copy expression
                 )
             }
-            
+
             for (argument, parameterType) in zip(arguments, parameterTypes) {
                 try check(argument, against: parameterType)
             }
-            
+
             return returnType
-            
+
         // MARK: - Bool
         case .constTrue,
              .constFalse:
             return .bool
-            
+
         case .if(let condition, let then, let `else`):
             try check(condition, against: .bool)
 
@@ -72,22 +72,22 @@ extension Context {
         // MARK: - Nat
         case .constInt:
             return .nat
-            
+
         case .succ(let expression):
             try check(expression, against: .nat)
-            
+
             return .nat
-            
+
         case .pred(let expression):
             try check(expression, against: .nat)
-            
+
             return .nat
-            
+
         case .isZero(let expression):
             try check(expression, against: .nat)
-            
+
             return .bool
-            
+
         case .natRec(let n, let zero, let step):
             try check(n, against: .nat)
 
@@ -117,16 +117,16 @@ extension Context {
         // MARK: - #unit-type
         case .constUnit:
             return .unit
-            
+
         // MARK: - #pairs, #tuples
         case .tuple(let elements):
             let types = try elements.map(infer)
-            
+
             return .tuple(elements: types)
-            
+
         case .dotTuple(let tuple, let index):
             let tupleType = try infer(tuple)
-            
+
             guard case .tuple(let elements) = tupleType else {
                 throw .notATuple(actual: tupleType, in: copy expression)
             }
@@ -151,11 +151,11 @@ extension Context {
 
         case .dotRecord(let record, let label):
             let recordType = try infer(record)
-            
+
             guard case .record(let fields) = recordType else {
                 throw .notARecord(actual: recordType, in: copy expression)
             }
-            
+
             guard let type = fields[label] else {
                 throw .unexpectedFieldAccess(label, type: recordType, in: copy expression)
             }
@@ -164,12 +164,12 @@ extension Context {
 
         // MARK: - #let-patterns
         case .let(let cases, let inExpression):
-            return try letContext(from: cases, in: expression)
+            return try contextOfLet(cases: cases, in: expression)
                 .infer(inExpression)
 
         // MARK: - #letrec-bindings
         case .letrec(let cases, let expression):
-            return try letrecContext(from: cases)
+            return try contextOfLetrec(cases: cases, in: expression)
                 .infer(expression)
 
         // MARK: - #type-ascriptions
@@ -208,11 +208,11 @@ extension Context {
 
             return .variant(cases: [label: dataType])
 
-        case .match(let matchedExpression, let cases):
-            let matchContexts = try matchContexts(
-                matchedExpression: matchedExpression,
+        case .match(let value, let cases):
+            let matchContexts = try contextsOfMatch(
+                value: value,
                 cases: cases,
-                in: matchedExpression
+                in: expression
             )
 
             if extensions.contains(.typeReconstruction) {
@@ -281,11 +281,11 @@ extension Context {
 
         case .head(let list):
             let listType = try infer(list)
-            
+
             guard case .list(let elementType) = listType else {
                 throw .notAList(actual: listType, in: copy expression)
             }
-            
+
             return elementType
 
         case .tail(let list):
@@ -299,21 +299,21 @@ extension Context {
 
         case .isEmpty(let list):
             let listType = try infer(list)
-            
+
             guard case .list = listType else {
                 throw .notAList(actual: listType, in: copy expression)
             }
-            
+
             return .bool
 
         // MARK: - #fixpoint-combinator
         case .fix(let generator):
             let generatorType = try infer(generator)
-            
+
             guard case .function(let parameters, let result) = generatorType else {
                 throw .notAFunction(actual: generatorType, in: copy expression)
             }
-            
+
             guard let parameter = parameters.first,
                   parameters.count == 1 else {
                 throw .incorrectArgumentsNumber(
@@ -328,14 +328,20 @@ extension Context {
                 throw .notAFunction(actual: parameter, in: copy expression)
             }
 
-            return try unify(actual: parameter, expected: result) <!> {
-                TypeCheckError.unifyError($0, in: copy expression)
+            if extensions.contains(.structuralSubtyping) {
+                try parameter.requireSubtype(of: result) <!> TypeCheckError.subtypeError(in: expression)
+
+                return parameter
+            } else {
+                return try unify(actual: parameter, expected: result) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
+                }
             }
 
         // MARK: - #sequencing
         case .sequence(let first, let second):
             try check(first, against: .unit)
-            
+
             return try infer(second)
 
         // MARK: - #references
@@ -344,27 +350,27 @@ extension Context {
 
         case .reference(let expression):
             return try .reference(infer(expression))
-            
+
         case .dereference(let referenceExpression):
             let referenceType = try infer(referenceExpression)
-            
+
             guard case .reference(let type) = referenceType else {
                 throw .notAReference(actual: referenceType, in: copy expression)
             }
-            
+
             return type
-            
+
         case .assign(let variable, let assingee):
             let referenceType = try infer(variable)
-            
+
             guard case .reference(let type) = referenceType else {
                 throw .notAReference(actual: referenceType, in: copy expression)
             }
-            
+
             try check(assingee, against: type)
-            
+
             return .unit
-        
+
         // MARK: - #panic
         case .panic:
             guard extensions.contains(.ambiguousTypeAsBottom) else {
@@ -389,6 +395,7 @@ extension Context {
 
         case .tryWith(let attempted, let fallback):
             let attemptedType = try infer(attempted)
+
             if extensions.contains(.typeReconstruction) {
                 let fallbackType = try infer(fallback)
 
@@ -410,8 +417,9 @@ extension Context {
 
             var localContext = self
 
-            let bindings = try match(pattern, against: exceptionType) <!> TypeCheckError.patternError
-            localContext.data.overlay(by: bindings)
+            let bindings = try match(pattern, against: exceptionType)
+                <!> TypeCheckError.patternError(in: copy expression)
+            localContext.data.shadow(by: bindings)
 
             if extensions.contains(.typeReconstruction) {
                 let handlerType = try localContext.infer(handler)
@@ -427,65 +435,39 @@ extension Context {
 
         // MARK: - #type-cast
         case .typeCast(let value, let rawType):
-            return .unit
-//            _ = try infer(value)
-//            return try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
-        
+            _ = try infer(value)
+
+            return try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+
         // MARK: - #try-cast-as, #type-cast-patterns
-        case .tryCastAs(let value, let rawType, let pattern, let success, with: let fallback):
-            return .unit
-//            _ = try infer(value)
-//            let castType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
-//            let bindings = try pattern.match(against: castType) <!> TypeCheckError.patternError
-//            let successType = try overlaid(by: bindings).infer(success)
-//            let fallbackType = try infer(fallback)
-//            return try successType.unify(with: fallbackType) <!> {
-//                TypeCheckError.unifyError($0, in: copy expression)
-//            }
-        
+        case .tryCastAs(let value, let rawType, let pattern, let success, let fallback):
+            let localContext = try contextOfTryCastAs(
+                value: value,
+                rawType: rawType,
+                pattern: pattern,
+                in: expression
+            )
+
+            let successType = try localContext.infer(success)
+
+            if extensions.contains(.typeReconstruction) {
+                let fallbackType = try localContext.infer(fallback)
+
+                return try unify(actual: fallbackType, expected: successType) <!> {
+                    TypeCheckError.unifyError($0, in: copy expression)
+                }
+            } else {
+                try check(fallback, against: successType)
+
+                return successType
+            }
+
         // MARK: - #universal-types
-        case .typeAbstraction(let variables, let expression):
-            return .unit
-//            return .forall(variables: variables, type: try infer(expression))
+        case .typeAbstraction(let variables, let body):
+            fatalError()
 
-        case .typeApplication(let expression, let rawTypes):
-            return .unit
-//            let polymorphicType = try infer(expression)
-//            guard case .forall(let variables, let body) = polymorphicType else {
-//                throw .unifyError(
-//                    .unexpectedType(actual: polymorphicType, expected: .forall(variables: [], type: .auto)),
-//                    in: copy expression
-//                )
-//            }
-//            guard variables.count == rawTypes.count else {
-//                throw .incorrectArgumentsNumber(
-//                    actual: rawTypes.count,
-//                    expected: variables.count,
-//                    type: polymorphicType,
-//                    in: copy expression
-//                )
-//            }
-//            let types = try rawTypes.map(CanonicalType.init(from:)) <!> TypeCheckError.canonizeError
-//            return body.substituting(Dictionary(uniqueKeysWithValues: zip(variables, types)))
-        }
-    }
-}
-
-private extension CanonicalType {
-    func substituting(_ substitutions: [Name: CanonicalType]) -> CanonicalType {
-        switch self {
-        case .variable(let name): substitutions[name] ?? self
-        case .function(let parameters, let result):
-            .function(from: parameters.map { $0.substituting(substitutions) }, to: result.substituting(substitutions))
-        case .tuple(let elements): .tuple(elements: elements.map { $0.substituting(substitutions) })
-        case .record(let fields): .record(fields: fields.mapValues { $0.substituting(substitutions) })
-        case .sum(let left, let right): .sum(left: left.substituting(substitutions), right: right.substituting(substitutions))
-        case .variant(let cases): .variant(cases: cases.mapValues { $0?.substituting(substitutions) })
-        case .list(let element): .list(element.substituting(substitutions))
-        case .reference(let type): .reference(type.substituting(substitutions))
-        case .forall(let variables, let type):
-            .forall(variables: variables, type: type.substituting(substitutions.filter { !variables.contains($0.key) }))
-        default: self
+        case .typeApplication(let calle, let parameters):
+            fatalError()
         }
     }
 }

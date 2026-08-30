@@ -193,8 +193,6 @@ extension NonEmpty where Wrapped: MutableCollection & RandomAccessCollection {
     }
 }
 
-public typealias NonEmptyArray<Element> = NonEmpty<[Element]>
-
 public func single<T>(_ element: T) -> NonEmpty<some Collection<T>> {
-    NonEmpty<CollectionOfOne<T>>(rawValue: CollectionOfOne(element))!
+    NonEmpty<CollectionOfOne<T>>(rawValue: CollectionOfOne(element)).unsafelyUnwrapped
 }

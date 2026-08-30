@@ -27,7 +27,7 @@ extension TypeData {
         }
     }
 
-    mutating func overlay(by otherData: TypeData) {
+    mutating func shadow(by otherData: TypeData) {
         data.merge(otherData.data, uniquingKeysWith: second)
     }
 }
@@ -48,12 +48,12 @@ extension TypeData {
         data = functions.mapValues(CanonicalType.function)
     }
     
-    mutating func overlay(by functions: Functions) {
-        overlay(by: TypeData.init § functions)
+    mutating func shadow(by functions: Functions) {
+        shadow(by: TypeData.init § functions)
     }
     
-    mutating func overlay(by parameters: Function.Parameters) {
-        overlay(
+    mutating func shadow(by parameters: Function.Parameters) {
+        shadow(
             by: TypeData.init • Dictionary.init(uniqueKeysWithValues:) § parameters.lazy.map(identity)
         )
     }

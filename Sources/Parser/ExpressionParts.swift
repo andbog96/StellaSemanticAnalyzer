@@ -52,7 +52,7 @@ extension Expression: StaticParsable {
                 thisParser
             }
             .inBraces
-        }.map(abstraction) <?> "lambda"
+        }.map(abstraction(parameters:returnExpression:)) <?> "lambda"
     }
 
     static func variant(using thisParser: Parser<Self>) -> Parser<Self> {
@@ -105,7 +105,7 @@ extension Expression: StaticParsable {
                 }
                 .inBraces
             }
-            .map { tryCatch(attempted: tried, $0, handler: $1) } <?> "try catch expression"
+            .map { tryCatch(attempted: tried, pattern: $0, handler: $1) } <?> "try catch expression"
 
             rule {
                 Keyword.with
@@ -127,7 +127,7 @@ extension Expression: StaticParsable {
                 thisParser.inBraces
             }
             .map { (type, clause, expression) in
-                tryCastAs(tried, asRawType: type, clause.0, clause.1, with: expression)
+                tryCastAs(value: tried, as: type, pattern: clause.0, handler: clause.1, fallback: expression)
             } <?> "`try cast with` expression"
         }}
     }
@@ -151,9 +151,9 @@ extension Expression: StaticParsable {
             .map { type in
                 {
                     if cast {
-                        typeCast(value: $0, asRawType: type)
+                        typeCast(value: $0, as: type)
                     } else {
-                        typeAscription(value: $0, asRawType: type)
+                        typeAscription(value: $0, as: type)
                     }
                 }
             } <?> "type \(cast ? "cast" : "ascription")"
@@ -171,5 +171,5 @@ extension Expression: StaticParsable {
         .parser
         .commaSeparated
         .inBrackets
-        .map { types in { typeApplication($0, types) } }
+        .map { types in { typeApplication(calle: $0, parameters: types) } }
 }

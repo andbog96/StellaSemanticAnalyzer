@@ -29,8 +29,8 @@ struct Context {
         }
 
         var localContext = self
-        localContext.data.overlay(by: function.parameters)
-        localContext.data.overlay(by: function.nestedFunctions)
+        localContext.data.shadow(by: function.parameters)
+        localContext.data.shadow(by: function.nestedFunctions)
 
         for localFunction in function.nestedFunctions.values {
             try localContext.check(localFunction)

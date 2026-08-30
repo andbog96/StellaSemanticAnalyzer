@@ -50,13 +50,13 @@ extension Pattern: StaticParsable {
                 Keyword.cast
                 Keyword.as
                 RawType.self
-            }.map { type in { Self.cast($0, asType: type) } } <?> "cast"
+            }.map { type in { Self.cast($0, as: type) } } <?> "cast"
         ),
         .postfix(
             rule {
                 Keyword.as
                 RawType.self
-            }.map { type in { Self.ascription($0, asType: type) } } <?> "ascription"
+            }.map { type in { Self.ascription($0, as: type) } } <?> "ascription"
         )
     ]]
 

@@ -1,6 +1,7 @@
 enum TypeCheckError: Error {
-    case unsupported(code: String? = nil, message: String? = nil)
-    
+    case unsupported(message: String)
+    case undefined(code: String)
+
     case missingMain
     case undefinedVariable(Name)
 
@@ -26,7 +27,7 @@ enum TypeCheckError: Error {
     case missingRecordFields([Label], for: CanonicalType, in: Expression)
     case unexpectedRecordFields([Label], for: CanonicalType, in: Expression)
     case unexpectedFieldAccess(Label, type: CanonicalType, in: Expression)
-    case unexpectedVariantLabel(Label, for: CanonicalType, in: Expression)
+    case unexpectedVariantLabels([Label], for: CanonicalType, in: Expression)
 
     case tupleIndexOutOfBounds(index: Int, type: CanonicalType, in: Expression)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType, in: Expression)
@@ -57,8 +58,6 @@ enum TypeCheckError: Error {
     case notAReference(actual: CanonicalType, in: Expression)
     case unexpectedMemoryAddress(in: Expression)
     case unexpectedReference(expected: CanonicalType, in: Expression)
-    
-    case unexpectedSubtype(CanonicalType, ofExpectedSupertype: CanonicalType, in: Expression)
 
     case duplicateExceptionType
     case duplicateExceptionVariant(Label)
@@ -67,16 +66,41 @@ enum TypeCheckError: Error {
     case illegalLocalOpenVariantException
     
     case canonizeError(CanonizeError)
+    case subtypeError(SubtypeError, in: Expression)
     case unifyError(UnifyError, in: Expression)
-    case patternError(PatternError)
+    case patternError(PatternError, in: Expression)
+}
+
+extension TypeCheckError {
+    static func subtypeError(in expression: borrowing Expression) -> (SubtypeError) -> Self {
+        { [expression = copy expression] in
+            subtypeError($0, in: expression)
+        }
+    }
+
+    static func unifyError(in expression: borrowing Expression) -> (UnifyError) -> Self {
+        { [expression = copy expression] in
+            unifyError($0, in: expression)
+        }
+    }
+
+    static func patternError(in expression: borrowing Expression) -> (PatternError) -> Self {
+        { [expression = copy expression] in
+            patternError($0, in: expression)
+        }
+    }
 }
 
 extension TypeCheckError {
     var code: String {
         switch self {
-        case .unsupported(let code, _),
-             .canonizeError(.unsupported(let code, _)):
-            code ?? ""
+        case .unsupported,
+             .canonizeError(.unsupported):
+            ""
+        case .undefined(let code),
+            .canonizeError(.undefined(let code)),
+            .subtypeError(.undefined(let code), _):
+            code
             
         case .missingMain: "ERROR_MISSING_MAIN"
         case .undefinedVariable: "ERROR_UNDEFINED_VARIABLE"
@@ -94,7 +118,7 @@ extension TypeCheckError {
         case .missingRecordFields: "ERROR_MISSING_RECORD_FIELDS"
         case .unexpectedRecordFields: "ERROR_UNEXPECTED_RECORD_FIELDS"
         case .unexpectedFieldAccess: "ERROR_UNEXPECTED_FIELD_ACCESS"
-        case .unexpectedVariantLabel: "ERROR_UNEXPECTED_VARIANT_LABEL"
+        case .unexpectedVariantLabels: "ERROR_UNEXPECTED_VARIANT_LABEL"
         case .tupleIndexOutOfBounds: "ERROR_TUPLE_INDEX_OUT_OF_BOUNDS"
         case .unexpectedTupleLength: "ERROR_UNEXPECTED_TUPLE_LENGTH"
         case .ambiguousSumType: "ERROR_AMBIGUOUS_SUM_TYPE"
@@ -116,7 +140,6 @@ extension TypeCheckError {
         case .notAReference: "ERROR_NOT_A_REFERENCE"
         case .unexpectedMemoryAddress: "ERROR_UNEXPECTED_MEMORY_ADDRESS"
         case .unexpectedReference: "ERROR_UNEXPECTED_REFERENCE"
-        case .unexpectedSubtype: "ERROR_UNEXPECTED_SUBTYPE"
         case .duplicateExceptionType: "ERROR_DUPLICATE_EXCEPTION_TYPE"
         case .duplicateExceptionVariant: "ERROR_DUPLICATE_EXCEPTION_VARIANT"
         case .conflictingExceptionDeclarations: "ERROR_CONFLICTING_EXCEPTION_DECLARATIONS"
@@ -129,7 +152,22 @@ extension TypeCheckError {
         case .canonizeError(.parametersError(.duplicateFunctionParameter, _)): "ERROR_DUPLICATE_FUNCTION_PARAMETER"
         case .canonizeError(.duplicateRecordTypeFields): "ERROR_DUPLICATE_RECORD_TYPE_FIELDS"
         case .canonizeError(.duplicateVariantTypeFields): "ERROR_DUPLICATE_VARIANT_TYPE_FIELDS"
-            
+
+        // MARK: - SubtypeError
+        case .subtypeError(.incorrectArgumentsNumber(let actual, let expected, let type), let expression):
+            Self.incorrectArgumentsNumber(actual: actual, expected: expected, type: type, in: expression).code
+
+        case .subtypeError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
+            Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).code
+
+        case .subtypeError(.missingRecordFields(let labels, let type), let expression):
+            Self.missingRecordFields(labels, for: type, in: expression).code
+
+        case .subtypeError(.unexpectedVariantLabels(let labels, let type), let expression):
+            Self.unexpectedVariantLabels(labels, for: type, in: expression).code
+
+        case .subtypeError(.unexpectedSubtype, _): "ERROR_UNEXPECTED_SUBTYPE"
+
         // MARK: - UnifyError
         case .unifyError(.unexpectedType, _): "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
 
@@ -137,14 +175,16 @@ extension TypeCheckError {
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).code
 
         // MARK: - PatternMatchError
-        case .patternError(.unexpectedPattern): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
-        case .patternError(.duplicateLetBinding): "ERROR_DUPLICATE_LET_BINDING"
-        case .patternError(.duplicateRecordPatternFields): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
-        case .patternError(.unexpectedNonNullaryVariantPattern): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
-        case .patternError(.unexpectedNullaryVariantPattern): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
+        case .patternError(.unexpectedPattern, _): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
+        case .patternError(.duplicateLetBinding, _): "ERROR_DUPLICATE_LET_BINDING"
+        case .patternError(.duplicateRecordPatternFields, _): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
+        case .patternError(.unexpectedNonNullaryVariantPattern, _): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
+        case .patternError(.unexpectedNullaryVariantPattern, _): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
 
-        case .patternError(.canonizeError(let canonizeError)):
+        case .patternError(.canonizeError(let canonizeError), _):
             Self.canonizeError(canonizeError).code
+        case .patternError(.subtypeError(let subtypeError), let expression):
+            Self.subtypeError(subtypeError, in: expression).code
         }
     }
 }
@@ -152,9 +192,13 @@ extension TypeCheckError {
 extension TypeCheckError {
     var message: String {
         switch self {
-        case .unsupported(_, let message),
-             .canonizeError(.unsupported(_, let message)):
-            message ?? "unsupported feature"
+        case .unsupported(let message),
+             .canonizeError(.unsupported(let message)):
+            message
+        case .undefined,
+             .canonizeError(.undefined),
+             .subtypeError(.undefined, _):
+            "undefined error"
 
         case .missingMain:
             "main function is missing from the program"
@@ -169,11 +213,11 @@ extension TypeCheckError {
             In expression:
                 \(indented: expression)
             """
-        case let .incorrectArgumentsNumber(actual, expected, type: calleeType, in: expression):
+        case .incorrectArgumentsNumber(let actual, let expected, let type, let expression):
             """
             Was expecting \(expected) argument\(expected != 1 ? "s" : ""), \
             instead got \(actual) argument\(actual != 1 ? "s" : "")
-            For the function of type: \(calleeType)
+            For the function of type: \(type)
             In expression: 
                 \(indented: expression)
             """
@@ -310,9 +354,9 @@ extension TypeCheckError {
             """
             Cannot infer type of a variant expression: \(expression)
             """
-        case let .unexpectedVariantLabel(label, expectedType, in: expression):
+        case let .unexpectedVariantLabels(labels, expectedType, in: expression):
             """
-            Variant label: '\(label)' wasn't expected 
+            Variant label: '\(labels.map(\.value).joined(separator: ", "))' wasn't expected 
             for a variant type: \(expectedType)
             In expression: \(expression)
             """
@@ -367,13 +411,6 @@ extension TypeCheckError {
             Was expecting an expression of type: \(expected)
             Instead got: \(expression)
             """
-        case let .unexpectedSubtype(subtype, supertype, in: expression):
-            """
-            Type: \(subtype)
-            Is not a subtype of: \(supertype)
-            In expression:
-                \(indented: expression)
-            """
         case .duplicateExceptionType:
             """
             Duplicate exception type declaration(s) at top-level (only one is allowed).
@@ -423,7 +460,28 @@ extension TypeCheckError {
             Duplicate variant tags: \(tags)
             In a variant type: \(type)
             """
-            
+
+        // MARK: - SubtypeError
+        case .subtypeError(.incorrectArgumentsNumber(let actual, let expected, let type), let expression):
+            Self.incorrectArgumentsNumber(actual: actual, expected: expected, type: type, in: expression).message
+
+        case .subtypeError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
+            Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
+
+        case .subtypeError(.missingRecordFields(let labels, let type), let expression):
+            Self.missingRecordFields(labels, for: type, in: expression).message
+
+        case .subtypeError(.unexpectedVariantLabels(let labels, let type), let expression):
+            Self.unexpectedVariantLabels(labels, for: type, in: expression).message
+
+        case .subtypeError(.unexpectedSubtype(let subtype, let supertype), let expression):
+            """
+            Type: \(subtype)
+            Is not a subtype of: \(supertype)
+            In expression:
+                \(indented: expression)
+            """
+
         // MARK: - UnifyError
         case .unifyError(.unexpectedType(let actual, let expected), let expression):
             """
@@ -436,36 +494,38 @@ extension TypeCheckError {
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
 
         // MARK: - PatternMatchError
-        case .patternError(.unexpectedPattern(let pattern, let type)):
+        case .patternError(.unexpectedPattern(let pattern, let type), _):
             """
             Pattern: \(pattern)
             cannot be used to match against type: \(type)
             """
-        case .patternError(.duplicateLetBinding(let id, in: let pattern)):
+        case .patternError(.duplicateLetBinding(let id, in: let pattern), _):
             """
             Duplicate let binding: \(id.lazy.map(String.init).joined(separator: ", "))
             In pattern: \(pattern)
             """
-        case .patternError(.duplicateRecordPatternFields(let fields, in: let pattern)):
+        case .patternError(.duplicateRecordPatternFields(let fields, in: let pattern), _):
             """
             Duplicate record fields: \(fields)
             In pattern: \(pattern)
             """
-        case .patternError(.unexpectedNullaryVariantPattern(let tag, let missedType, let pattern, let type)):
+        case .patternError(.unexpectedNullaryVariantPattern(let tag, let missedType, let pattern, let type), _):
             """
             Pattern: \(pattern) 
             suggests that a variant label: '\(tag)' must be a nullary label
             but is should match the type: \(missedType)
             according to the matching type: \(type)
             """
-        case .patternError(.unexpectedNonNullaryVariantPattern(let tag, let pattern, let type)):
+        case .patternError(.unexpectedNonNullaryVariantPattern(let tag, let pattern, let type), _):
             """
             Pattern: \(pattern)
             provides a pattern to match for a label: '\(tag)', 
             but this tag must be null according to a matching type: \(type)
             """
-        case .patternError(.canonizeError(let canonizeError)):
+        case .patternError(.canonizeError(let canonizeError), _):
             TypeCheckError.canonizeError(canonizeError).message
+        case .patternError(.subtypeError(let subtypeError), let expression):
+            Self.subtypeError(subtypeError, in: expression).message
         }
     }
 }

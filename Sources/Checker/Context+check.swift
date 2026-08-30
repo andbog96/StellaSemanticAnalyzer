@@ -21,30 +21,35 @@ extension Context {
             ) <!> TypeCheckError.canonizeError
 
             for ((actualParameterName, actualParameterType), expectedParameterType) in zip(actualParameters, expectedParameterTypes) {
-                try unify(actual: actualParameterType, expected: expectedParameterType) <!> { (_: UnifyError) in
-                    TypeCheckError.unexpectedParameterType(
-                        actual: actualParameterType,
-                        expected: expectedParameterType,
-                        name: actualParameterName,
-                        callee: copy expectedType,
-                        in: expression
-                    )
+                if extensions.contains(.structuralSubtyping) {
+                    try actualParameterType.requireSubtype(of: expectedParameterType)
+                        <!> TypeCheckError.subtypeError(in: expression)
+                } else {
+                    guard actualParameterType == expectedParameterType else {
+                        throw TypeCheckError.unexpectedParameterType(
+                            actual: actualParameterType,
+                            expected: expectedParameterType,
+                            name: actualParameterName,
+                            callee: copy expectedType,
+                            in: expression
+                        )
+                    }
                 }
             }
 
             var localContext = self
-            localContext.data.overlay(by: actualParameters)
+            localContext.data.shadow(by: actualParameters)
 
             try localContext.check(actualReturnExpression, against: expectedReturnType)
 
         case (
             .abstraction(let actualParameters, _),
-            .function(let expectedParameterTypes, let expectedReturnType)
+            .function(let expectedParameterTypes, _)
         ):
             throw .unexpectedParametersNumber(
                 actual: actualParameters.count,
                 expected: expectedParameterTypes.count,
-                type: expectedReturnType,
+                type: copy expectedType,
                 in: expression
             )
 
@@ -98,29 +103,30 @@ extension Context {
                 TypeCheckError.duplicateRecordFields($0, in: expression)
             }
 
-            let expectedLabels = Set(expectedFields.keys)
-            let missingLabels = expectedLabels.subtracting(actualLabels)
-            guard missingLabels.isEmpty else {
-                throw .missingRecordFields(
-                    Array(missingLabels),
-                    for: copy expectedType,
-                    in: expression
-                )
-            }
-
-            let unexpectedLabels = actualLabels.subtracting(expectedLabels)
-            guard unexpectedLabels.isEmpty else {
-                throw .unexpectedRecordFields(
-                    Array(unexpectedLabels),
-                    for: copy expectedType,
-                    in: expression
-                )
+            if !extensions.contains(.structuralSubtyping) {
+                let unexpectedLabels = actualLabels.subtracting(expectedFields.keys)
+                guard unexpectedLabels.isEmpty else {
+                    throw .unexpectedRecordFields(
+                        Array(unexpectedLabels),
+                        for: copy expectedType,
+                        in: expression
+                    )
+                }
             }
 
             for (label, expression) in actualFields {
-                if let expectedType = expectedFields[label] {
-                    try check(expression, against: expectedType)
+                guard let expectedType = expectedFields[label] else {
+                    let missingLabels = Set(expectedFields.keys).subtracting(actualLabels)
+                    assert(!missingLabels.isEmpty)
+
+                    throw .missingRecordFields(
+                        Array(missingLabels),
+                        for: copy expectedType,
+                        in: expression
+                    )
                 }
+
+                try check(expression, against: expectedType)
             }
 
         case (.record, _):
@@ -128,21 +134,13 @@ extension Context {
 
         // MARK: - #let-patterns
         case (.let(let cases, let inExpression), _):
-            try letContext(from: cases, in: expression)
+            try contextOfLet(cases: cases, in: expression)
                 .check(inExpression, against: expectedType)
 
         // MARK: - #letrec-bindings
         case (.letrec(let cases, let inExpression), _):
-            try letrecContext(from: cases)
+            try contextOfLetrec(cases: cases, in: expression)
                 .check(inExpression, against: expectedType)
-
-        // MARK: - #type-ascriptions
-        case (.typeAscription, _):
-            let ascribedType = try infer(expression)
-
-            try unify(actual: ascribedType, expected: expectedType) <!> {
-                TypeCheckError.unifyError($0, in: expression)
-            }
 
         // MARK: - #sum-types
         case (.inl(let value), .sum(let sumType, _)),
@@ -159,34 +157,34 @@ extension Context {
             .variant(let expectedCases)
         ):
             guard let expectedData = expectedCases[label] else {
-                throw .unexpectedVariantLabel(label, for: copy expectedType, in: expression)
+                throw .unexpectedVariantLabels([label], for: copy expectedType, in: expression)
             }
 
             switch (actualData, expectedData) {
             case (nil, nil):
                 break
 
-            case (let actualData?, let expectedData?):
-                try check(actualData, against: expectedData)
-
             case (_?, nil):
                 throw .unexpectedData(for: label, expected: copy expectedType, in: expression)
 
             case (nil, let expectedData?):
                 throw .missingData(for: label, type: expectedData, expected: copy expectedType, in: expression)
+
+            case (let actualData?, let expectedData?):
+                try check(actualData, against: expectedData)
             }
 
         case (.variant, _):
             throw .unexpectedVariant(expected: copy expectedType, in: expression)
 
-        case (.match(let matchedExpression, let cases), _):
-            let matchContexts = try matchContexts(
-                matchedExpression: matchedExpression,
+        case (.match(let value, let cases), _):
+            let localContexts = try contextsOfMatch(
+                value: value,
                 cases: cases,
                 in: expression
             )
 
-            for (localContext, value) in matchContexts {
+            for (localContext, value) in localContexts {
                 try localContext.check(value, against: expectedType)
             }
 
@@ -265,24 +263,42 @@ extension Context {
             
             var localContext = self
 
-            let bindings = try match(pattern, against: exceptionType) <!> TypeCheckError.patternError
-            localContext.data.overlay(by: bindings)
+            let bindings = try match(pattern, against: exceptionType)
+                <!> TypeCheckError.patternError(in: expression)
+            localContext.data.shadow(by: bindings)
 
             try localContext.check(handler, against: expectedType)
+
+        // MARK: - #try-cast-as, #type-cast-patterns
+        case (.tryCastAs(let value, let rawType, let pattern, let success, let fallback), _):
+            let localContext = try contextOfTryCastAs(
+                value: value,
+                rawType: rawType,
+                pattern: pattern,
+                in: expression
+            )
+
+            try localContext.check(success, against: expectedType)
+
+            try check(fallback, against: expectedType)
 
         default:
             let actualType = try infer(expression)
 
-            try unify(actual: actualType, expected: expectedType) <!> {
-                TypeCheckError.unifyError($0, in: expression)
+            if extensions.contains(.structuralSubtyping) {
+                try actualType.requireSubtype(of: expectedType)
+                    <!> TypeCheckError.subtypeError(in: expression)
+            } else {
+                try unify(actual: copy actualType, expected: expectedType)
+                    <!> TypeCheckError.unifyError(in: expression)
             }
         }
     }
 }
 
 extension Context {
-    func letContext(
-        from cases: [(pattern: Pattern, value: Expression)],
+    func contextOfLet(
+        cases: [(pattern: Pattern, value: Expression)],
         in expression: borrowing Expression
     ) throws(TypeCheckError) -> Context {
         var localContext = self
@@ -290,14 +306,18 @@ extension Context {
 
         for (pattern, value) in cases {
             let valueType = try localContext.infer(value)
-            let bindings = try match(pattern, against: valueType) <!> TypeCheckError.patternError
+            let bindings = try match(pattern, against: valueType)
+                <!> TypeCheckError.patternError(in: expression)
 
             let duplicateBindings = usedBindings.intersection(bindings.names)
             guard duplicateBindings.isEmpty else {
-                throw .patternError(.duplicateLetBinding(Array(duplicateBindings), in: pattern))
+                throw .patternError(
+                    .duplicateLetBinding(Array(duplicateBindings), in: pattern),
+                    in: copy expression
+                )
             }
 
-            localContext.data.overlay(by: bindings)
+            localContext.data.shadow(by: bindings)
             usedBindings.formUnion(bindings.names)
 
             do {
@@ -310,31 +330,32 @@ extension Context {
         return localContext
     }
 
-    func letrecContext(
-        from cases: [(pattern: Pattern, value: Expression)]
+    func contextOfLetrec(
+        cases: [(pattern: Pattern, value: Expression)],
+        in expression: borrowing Expression
     ) throws(TypeCheckError) -> Context {
         guard let (pattern, value) = cases.first else {
             throw .unsupported(message: "#letrec-many-bindings is not supported")
         }
 
         guard case .ascription(let subpattern, let rawType) = pattern else {
-            throw .unsupported(code: "ERROR_AMBIGUOUS_PATTERN_TYPE")
+            throw .undefined(code: "ERROR_AMBIGUOUS_PATTERN_TYPE")
         }
 
         let valueType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
 
         var localContext = self
 
-        let bindings = try match(subpattern, against: valueType) <!> TypeCheckError.patternError
-        localContext.data.overlay(by: bindings)
+        let bindings = try match(subpattern, against: valueType) <!> TypeCheckError.patternError(in: expression)
+        localContext.data.shadow(by: bindings)
 
         try localContext.check(value, against: valueType)
 
         return localContext
     }
 
-    func matchContexts(
-        matchedExpression: Expression,
+    func contextsOfMatch(
+        value: Expression,
         cases: [(pattern: Pattern, value: Expression)],
         in expression: borrowing Expression
     ) throws(TypeCheckError) -> NonEmpty<[(localContext: Context, value: Expression)]> {
@@ -342,7 +363,7 @@ extension Context {
             throw .illegalEmptyMatch(in: copy expression)
         }
 
-        let matchedType = try infer(matchedExpression)
+        let matchedType = try infer(value)
 
         do {
             try matchedType.checkExhaustiveness(of: cases.map(\.pattern))
@@ -353,10 +374,26 @@ extension Context {
         return try cases.map { pattern, value throws(TypeCheckError) in
             var localContext = self
 
-            let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError
-            localContext.data.overlay(by: bindings)
+            let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError(in: expression)
+            localContext.data.shadow(by: bindings)
 
             return (localContext: localContext, value: value)
         }
+    }
+
+    func contextOfTryCastAs(
+        value: Expression,
+        rawType: RawType,
+        pattern: Pattern,
+        in expression: borrowing Expression
+    ) throws(TypeCheckError) -> Context {
+        let castType = try infer(.typeCast(value: value, as: rawType))
+
+        var localContext = self
+
+        let bindings = try match(pattern, against: castType) <!> TypeCheckError.patternError(in: expression)
+        localContext.data.shadow(by: bindings)
+
+        return localContext
     }
 }
