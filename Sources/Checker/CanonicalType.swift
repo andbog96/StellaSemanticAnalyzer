@@ -1,5 +1,6 @@
 import Collections
 
+@MainActor
 enum CanonicalType: Sendable, Equatable, Hashable {
     indirect case function(from: [Self], to: Self)
 
@@ -20,19 +21,148 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case top
     case bottom
 
-    case auto
+    case auto(TypeVariableID)
     case variable(Name)
-    indirect case forall(variables: [Name], body: Self)
+    indirect case forall(variables: OrderedSet<Name>, body: Self)
 }
 
 extension CanonicalType {
     static func function(_ function: Function) -> Self {
-        .function(
+        let body = Self.function(
             from: Array.init § function.parameters.values,
             to: function.returnType
         )
+
+        return if function.typeVariables.isEmpty {
+            body
+        } else {
+            .forall(variables: function.typeVariables, body: body)
+        }
     }
-    
+}
+
+extension CanonicalType {
+    var containsAutoType: Bool {
+        switch self {
+        case .auto:
+            true
+
+        case .function(let parameters, let result):
+            parameters.contains(where: \.containsAutoType) || result.containsAutoType
+
+        case .tuple(let elements):
+            elements.contains(where: \.containsAutoType)
+
+        case .record(let fields):
+            fields.values.contains(where: \.containsAutoType)
+
+        case .sum(let left, let right):
+            left.containsAutoType || right.containsAutoType
+
+        case .variant(let cases):
+            cases.compactMap(\.value).contains(where: \.containsAutoType)
+
+        case .list(let element), .reference(let element):
+            element.containsAutoType
+
+        case .forall(_, let body):
+            body.containsAutoType
+
+        default:
+            false
+        }
+    }
+
+    func substituting(_ substitutions: [Name: CanonicalType]) -> Self {
+        switch self {
+        case .variable(let name):
+            substitutions[name] ?? self
+
+        case .forall(let variables, let body):
+            .forall(
+                variables: variables,
+                body: body.substituting(substitutions.filter(not • variables.contains • \.key))
+            )
+
+        case .function(let from, let to):
+            .function(
+                from: from.map { $0.substituting(substitutions) },
+                to: to.substituting(substitutions)
+            )
+
+        case .tuple(let elements):
+            .tuple(elements: elements.map { $0.substituting(substitutions) })
+
+        case .record(let fields):
+            .record(fields: fields.mapValues { $0.substituting(substitutions) })
+
+        case .sum(let left, let right):
+            .sum(
+                left: left.substituting(substitutions),
+                right: right.substituting(substitutions)
+            )
+
+        case .variant(let cases):
+            .variant(cases: cases.mapValues { $0.map { $0.substituting(substitutions) } })
+
+        case .list(let element):
+            .list(element.substituting(substitutions))
+
+        case .reference(let value):
+            .reference(value.substituting(substitutions))
+
+        default:
+            self
+        }
+    }
+
+    func freeVariables(except excluded: Set<Name>) -> Set<Name> {
+        switch self {
+        case .variable(let name):
+            excluded.contains(name) ? [] : [name]
+
+        case .forall(let variables, let body):
+            body.freeVariables(except: excluded.union(variables))
+
+        case .function(let from, let to):
+            from
+            .lazy
+            .map { $0.freeVariables(except: excluded) }
+            .reduce(to.freeVariables(except: excluded), Set.union)
+
+        case .tuple(let elements):
+            elements
+            .lazy
+            .map { $0.freeVariables(except: excluded) }
+            .reduce([], Set.union)
+
+        case .record(let fields):
+            fields.values
+            .lazy
+            .map { $0.freeVariables(except: excluded) }
+            .reduce([], Set.union)
+
+        case .sum(let left, let right):
+            CollectionOfTwo(left, right)
+            .lazy
+            .map { $0.freeVariables(except: excluded) }
+            .reduce([], Set.union)
+
+        case .variant(let cases):
+            cases.values
+            .lazy
+            .compactMap { $0?.freeVariables(except: excluded) }
+            .reduce([], Set.union)
+
+        case .list(let element),
+             .reference(let element):
+            element.freeVariables(except: excluded)
+
+        default:
+            []
+        }
+    }
+
     init(from rawType: RawType) throws(CanonizeError) {
         self = switch rawType {
         case .function(let from, let to):
@@ -99,11 +229,16 @@ extension CanonicalType {
             .variable(name)
         
         case .auto:
-            .auto
-        
+            .auto(.new)
+
         case .forall(let variables, let type):
             try .forall(
-                variables: variables,
+                variables: try OrderedSet(
+                    variables,
+                    rejectingDuplicatesWith: ParametersError.duplicateTypeParameter
+                ) <!> {
+                    CanonizeError.parametersError($0, in: .forall(typeVariables: variables, returnType: type))
+                },
                 body: Self(from: type)
             )
         }
@@ -111,6 +246,7 @@ extension CanonicalType {
 }
 
 extension Sequence<(name: Name, rawType: RawType)> {
+    @MainActor
     func canonized() throws(CanonizeError) -> some Sequence<(name: Name, type: CanonicalType)> {
         try map { name, rawType throws(CanonizeError) in
             (

@@ -1,8 +1,9 @@
+@MainActor
 struct TypeData {
     fileprivate var data = [:] as [Name: CanonicalType]
 }
 
-extension TypeData: ExpressibleByNilLiteral {
+extension TypeData: @MainActor ExpressibleByNilLiteral {
     public init(nilLiteral: ()) {
         self.data = [:]
     }
@@ -18,7 +19,7 @@ extension TypeData {
     }
 
     subscript(_ name: Name) -> CanonicalType {
-        get throws(TypeCheckError) {
+        get throws(SemanticError) {
             guard let type = data[name] else {
                 throw .undefinedVariable(name)
             }

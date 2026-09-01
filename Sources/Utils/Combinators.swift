@@ -17,13 +17,3 @@ public func first<A, B>(_ a: A, _: B) -> A {
 public func second<A, B>(_: A, _ b: B) -> B {
     b
 }
-
-@inlinable
-public func with<Value, E: Error>(
-    _ value: Value,
-    do body: (inout Value) throws(E) -> Void,
-) throws(E) -> Value {
-    var copy = value
-    try body(&copy)
-    return copy
-}

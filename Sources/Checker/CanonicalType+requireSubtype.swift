@@ -1,12 +1,4 @@
 extension CanonicalType {
-    borrowing func isSubtypeComparable(
-        with other: borrowing CanonicalType
-    ) -> Bool {
-        (try? requireSubtype(of: other)) != nil
-        ||
-        (try? other.requireSubtype(of: self)) != nil
-    }
-
     borrowing func requireSubtype(of supertype: borrowing CanonicalType) throws(SubtypeError) {
         guard self != supertype else {
             return
@@ -110,8 +102,12 @@ extension CanonicalType {
         case (
             .forall(let subtypeVariables, let subtypeBody),
             .forall(let supertypeVariables, let supertypeBody)
-        ) where subtypeVariables == supertypeVariables:
-            try subtypeBody.requireSubtype(of: supertypeBody)
+        ) where subtypeVariables.count == supertypeVariables.count:
+            let renaming = Dictionary(uniqueKeysWithValues: zip(
+                subtypeVariables,
+                supertypeVariables.map(CanonicalType.variable)
+            ))
+            try subtypeBody.substituting(renaming).requireSubtype(of: supertypeBody)
 
         default:
             throw .unexpectedSubtype(copy self, of: copy supertype)

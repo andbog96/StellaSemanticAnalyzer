@@ -1,5 +1,7 @@
+import Collections
+
 extension Context {
-    func infer(_ expression: borrowing Expression) throws(TypeCheckError) -> CanonicalType {
+    func infer(_ expression: borrowing Expression) throws(SemanticError) -> CanonicalType {
         switch expression {
         // MARK: - STLC
         case .var(let name):
@@ -13,7 +15,7 @@ extension Context {
                         returnExpression: returnExpression
                     ))
                 }
-            ) <!> TypeCheckError.canonizeError
+            ) <!> SemanticError.canonizeError
 
             var localContext = self
             localContext.data.shadow(by: functionParameters)
@@ -26,9 +28,23 @@ extension Context {
             )
 
         case .application(let callee, let arguments):
-            let calleeType = try infer(callee)
+            let calleeType = solver.resolve(try infer(callee))
 
-            guard case let .function(parameterTypes, returnType) = calleeType else {
+            let parameterTypes: [CanonicalType]
+            let returnType: CanonicalType
+
+            if case let .function(parameters, result) = calleeType {
+                parameterTypes = parameters
+                returnType = result
+            } else if extensions.contains(.typeReconstruction), case .auto = calleeType {
+                parameterTypes = arguments.map { _ in .auto(.new) }
+                returnType = .auto(.new)
+
+                try solver.unify(
+                    actual: calleeType,
+                    expected: .function(from: parameterTypes, to: returnType)
+                ) <!> SemanticError.unifyError(in: expression)
+            } else {
                 throw .notAFunction(actual: calleeType, in: copy expression)
             }
 
@@ -45,7 +61,7 @@ extension Context {
                 try check(argument, against: parameterType)
             }
 
-            return returnType
+            return solver.resolve(returnType)
 
         // MARK: - Bool
         case .constTrue,
@@ -59,9 +75,8 @@ extension Context {
                 let thenType = try infer(then)
                 let elseType = try infer(`else`)
 
-                return try unify(actual: thenType, expected: elseType) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                return try solver.unify(actual: thenType, expected: elseType)
+                    <!> SemanticError.unifyError(in: copy expression)
             } else {
                 let thenType = try infer(then)
                 try check(`else`, against: thenType)
@@ -93,24 +108,10 @@ extension Context {
 
             let zeroType = try infer(zero)
 
-            if extensions.contains(.typeReconstruction) {
-                let stepType = try infer(step)
-
-                _ = try unify(
-                    actual: stepType,
-                    expected: .function(
-                        from: [.nat],
-                        to: .function(from: [zeroType], to: zeroType)
-                    )
-                ) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
-            } else {
-                try check(step, against: .function(
-                    from: [.nat],
-                    to: .function(from: [zeroType], to: zeroType)
-                ))
-            }
+            try check(step, against: .function(
+                from: [.nat],
+                to: .function(from: [zeroType], to: zeroType)
+            ))
 
             return zeroType
 
@@ -125,7 +126,16 @@ extension Context {
             return .tuple(elements: types)
 
         case .dotTuple(let tuple, let index):
-            let tupleType = try infer(tuple)
+            var tupleType = solver.resolve(try infer(tuple))
+
+            if extensions.contains(.typeReconstruction),
+               case .auto = tupleType,
+               1...2 ~= index {
+                let elements = [CanonicalType.auto(.new), .auto(.new)]
+
+                tupleType = try solver.unify(actual: tupleType, expected: .tuple(elements: elements))
+                    <!> SemanticError.unifyError(in: expression)
+            }
 
             guard case .tuple(let elements) = tupleType else {
                 throw .notATuple(actual: tupleType, in: copy expression)
@@ -144,7 +154,7 @@ extension Context {
                     (key: label, value: value)
                 },
                 rejectingDuplicateKeysWith: { duplicates in
-                    TypeCheckError.duplicateRecordFields(duplicates, in: copy expression)
+                    SemanticError.duplicateRecordFields(duplicates, in: copy expression)
                 }
             )
             .mapValues(infer)
@@ -174,39 +184,43 @@ extension Context {
 
         // MARK: - #type-ascriptions
         case .typeAscription(let value, let rawType):
-            let ascribedType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+            let ascribedType = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
             try check(value, against: ascribedType)
 
             return ascribedType
 
         // MARK: - #sum-types
         case .inl(let left):
-            guard extensions.contains(.ambiguousTypeAsBottom) else {
-                throw .ambiguousSumType(in: copy expression)
-            }
-
             let leftType = try infer(left)
 
-            return .sum(left: leftType, right: .bottom)
-
-        case .inr(let right):
-            guard extensions.contains(.ambiguousTypeAsBottom) else {
+            return if extensions.contains(.ambiguousTypeAsBottom) {
+                .sum(left: leftType, right: .bottom)
+            } else if extensions.contains(.typeReconstruction) {
+                .sum(left: leftType, right: .auto(.new))
+            } else {
                 throw .ambiguousSumType(in: copy expression)
             }
 
+        case .inr(let right):
             let rightType = try infer(right)
 
-            return .sum(left: .bottom, right: rightType)
+            return if extensions.contains(.ambiguousTypeAsBottom) {
+                .sum(left: .bottom, right: rightType)
+            } else if extensions.contains(.typeReconstruction) {
+                .sum(left: .auto(.new), right: rightType)
+            } else {
+                throw .ambiguousSumType(in: copy expression)
+            }
 
         // MARK: - #variants
-        case .variant(let label, let data):
+        case .variant(let label, let payload):
             guard extensions.contains(.structuralSubtyping) else {
                 throw .ambiguousVariantType(in: copy expression)
             }
 
-            let dataType = try data.map(infer)
+            let payloadType = try payload.map(infer)
 
-            return .variant(cases: [label: dataType])
+            return .variant(cases: [label: payloadType])
 
         case .match(let value, let cases):
             let matchContexts = try contextsOfMatch(
@@ -216,13 +230,11 @@ extension Context {
             )
 
             if extensions.contains(.typeReconstruction) {
-                let caseTypes = try matchContexts.map { localContext, value throws(TypeCheckError) in
+                let caseTypes = try matchContexts.map { localContext, value throws(SemanticError) in
                     try localContext.infer(value)
                 }
 
-                let unifiedType = try caseTypes.fold(unify(actual:expected:)) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                let unifiedType = try solver.unify(caseTypes) <!> SemanticError.unifyError(in: expression)
 
                 return unifiedType
             } else {
@@ -239,19 +251,19 @@ extension Context {
         // MARK: - #lists
         case .list(let elements):
             guard let elements = NonEmpty(rawValue: elements) else {
-                guard extensions.contains(.ambiguousTypeAsBottom) else {
+                return if extensions.contains(.ambiguousTypeAsBottom) {
+                    .list(.bottom)
+                } else if extensions.contains(.typeReconstruction) {
+                    .list(.auto(.new))
+                } else {
                     throw .ambiguousListType(in: copy expression)
                 }
-
-                return .list(.bottom)
             }
 
             if extensions.contains(.typeReconstruction) {
                 let types = try elements.map(infer)
 
-                let unifiedType = try types.fold(unify(actual:expected:)) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                let unifiedType = try solver.unify(types) <!> SemanticError.unifyError(in: expression)
 
                 return .list(unifiedType)
             } else {
@@ -269,9 +281,8 @@ extension Context {
                 let headType = try infer(head)
                 let tailType = try infer(tail)
 
-                return try unify(actual: .list(headType), expected: tailType) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                return try solver.unify(actual: .list(headType), expected: tailType)
+                    <!> SemanticError.unifyError(in: expression)
             } else {
                 let headType = try infer(head)
                 try check(tail, against: .list(headType))
@@ -328,15 +339,7 @@ extension Context {
                 throw .notAFunction(actual: parameter, in: copy expression)
             }
 
-            if extensions.contains(.structuralSubtyping) {
-                try parameter.requireSubtype(of: result) <!> TypeCheckError.subtypeError(in: expression)
-
-                return parameter
-            } else {
-                return try unify(actual: parameter, expected: result) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
-            }
+            return try constrain(parameter, to: result) <!> SemanticError.constrainError(in: expression)
 
         // MARK: - #sequencing
         case .sequence(let first, let second):
@@ -399,9 +402,8 @@ extension Context {
             if extensions.contains(.typeReconstruction) {
                 let fallbackType = try infer(fallback)
 
-                return try unify(actual: attemptedType, expected: fallbackType) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                return try solver.unify(actual: attemptedType, expected: fallbackType)
+                    <!> SemanticError.unifyError(in: expression)
             } else {
                 try check(fallback, against: attemptedType)
 
@@ -418,15 +420,14 @@ extension Context {
             var localContext = self
 
             let bindings = try match(pattern, against: exceptionType)
-                <!> TypeCheckError.patternError(in: copy expression)
+                <!> SemanticError.patternError(in: expression)
             localContext.data.shadow(by: bindings)
 
             if extensions.contains(.typeReconstruction) {
                 let handlerType = try localContext.infer(handler)
 
-                return try unify(actual: attemptedType, expected: handlerType) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                return try solver.unify(actual: attemptedType, expected: handlerType)
+                    <!> SemanticError.unifyError(in: expression)
             } else {
                 try localContext.check(handler, against: attemptedType)
 
@@ -437,7 +438,7 @@ extension Context {
         case .typeCast(let value, let rawType):
             _ = try infer(value)
 
-            return try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+            return try CanonicalType(from: rawType) <!> SemanticError.canonizeError
 
         // MARK: - #try-cast-as, #type-cast-patterns
         case .tryCastAs(let value, let rawType, let pattern, let success, let fallback):
@@ -453,9 +454,8 @@ extension Context {
             if extensions.contains(.typeReconstruction) {
                 let fallbackType = try localContext.infer(fallback)
 
-                return try unify(actual: fallbackType, expected: successType) <!> {
-                    TypeCheckError.unifyError($0, in: copy expression)
-                }
+                return try solver.unify(actual: fallbackType, expected: successType)
+                    <!> SemanticError.unifyError(in: expression)
             } else {
                 try check(fallback, against: successType)
 
@@ -464,10 +464,47 @@ extension Context {
 
         // MARK: - #universal-types
         case .typeAbstraction(let variables, let body):
-            fatalError()
+            let variables = try OrderedSet(
+                variables,
+                rejectingDuplicatesWith: ParametersError.duplicateTypeParameter
+            ) <!> {
+                SemanticError.canonizeError(.parametersError($0, in: .lambda(
+                    typeVariables: variables,
+                    returnExpression: body
+                )))
+            }
 
-        case .typeApplication(let calle, let parameters):
-            fatalError()
+            var localContext = self
+            localContext.typeVariables.formUnion(variables)
+            let bodyType = try localContext.infer(body)
+
+            return .forall(variables: variables, body: bodyType)
+
+        case .typeApplication(let callee, let parameters):
+            let calleeType = solver.resolve(try infer(callee))
+            guard case .forall(let variables, let body) = calleeType else {
+                throw .notAGenericFunction(actual: calleeType, in: copy expression)
+            }
+
+            let parameters = try parameters.map(CanonicalType.init(from:)) <!> SemanticError.canonizeError
+            guard variables.count == parameters.count else {
+                throw .incorrectNumberOfTypeArguements(
+                    actual: parameters.count,
+                    expected: variables.count,
+                    type: calleeType,
+                    in: copy expression
+                )
+            }
+
+            let freeVariables = Array.init § parameters
+                .lazy
+                .map { $0.freeVariables(except: typeVariables) }
+                .reduce([], Set.union)
+            guard freeVariables.isEmpty else {
+                throw .undefinedTypeVariables(freeVariables)
+            }
+
+            return body.substituting(Dictionary(uniqueKeysWithValues: zip(variables, parameters)))
         }
     }
 }

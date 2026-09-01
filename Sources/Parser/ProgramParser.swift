@@ -69,25 +69,32 @@ extension Declaration: StaticParsable {
 
     static var function: Parser<Self> {
         rule {
-            Keyword.generic.parser.discard
-            Keyword.fn
-            Name.parser <?> "function name"
-            Name.parser
-                .commaSeparated
-                .inBrackets
-                .optional
-                .map { $0 ?? [] } <?> "type variables"
+            alternatives {
+                rule {
+                    Keyword.generic
+                    Keyword.fn
+                    Name.parser <?> "function name"
+                    Name.parser.commaSeparated.inBrackets <?> "type variables"
+                }
+                .map { (name: $0, typeVariables: $1) }
+
+                rule {
+                    Keyword.fn
+                    Name.parser <?> "function name"
+                }
+                .map { (name: $0, typeVariables: [Name]()) }
+            }
             parameters
             returnType
             throwTypes
             functionBody
         }
-        .map { name, typeVariables, parameters, returnType, throwTypes, body in
+        .map { header, parameters, returnType, throwTypes, body in
             let (declarations, returnExpression) = body
             
             return function(
-                name: name,
-                typeVariables: typeVariables,
+                name: header.name,
+                typeVariables: header.typeVariables,
                 parameters: parameters,
                 returnType: returnType,
                 throwTypes: throwTypes,

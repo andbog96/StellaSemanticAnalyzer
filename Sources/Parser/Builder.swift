@@ -3,7 +3,6 @@
 // Generic ParserBuilders for the SwiftParsec parsers
 
 typealias Source = String
-typealias StellaParseError = ParseError
 typealias Parser<Result> = GenericParser<Source, Void, Result>
 
 protocol Parsable {

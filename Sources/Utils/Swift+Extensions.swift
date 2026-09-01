@@ -7,7 +7,6 @@ extension Collection {
 }
 
 extension Sequence {
-    
     func compactMap<T, E: Error>(
         _ transform: (Element) throws(E) -> T?
     ) throws(E) -> [T] {
@@ -21,18 +20,19 @@ extension Sequence {
         
         return result
     }
-    
-//    func reduce<T, E: Error>(
-//        _ nextPartialResult: (_ result: T?, _ next: Element) throws(E) -> T?
-//    ) throws(E) -> T? {
-//        var result = nil as T?
-//        
-//        for element in self {
-//            result = try nextPartialResult(result, element)
-//        }
-//        
-//        return result
-//    }
+
+    func reduce<T, E: Error>(
+        _ initialResult: T,
+        _ nextPartialResult: (_ result: T) -> (_ next: Element) throws(E) -> T
+    ) throws(E) -> T {
+        var result = initialResult
+
+        for element in self {
+            result = try nextPartialResult(result)(element)
+        }
+        
+        return result
+    }
 }
 
 extension NonEmpty {

@@ -1,4 +1,5 @@
-enum TypeCheckError: Error {
+@MainActor
+enum SemanticError: Error {
     case unsupported(message: String)
     case undefined(code: String)
 
@@ -49,6 +50,8 @@ enum TypeCheckError: Error {
     case unexpectedData(for: Label, expected: CanonicalType, in: Expression)
     case missingData(for: Label, type: CanonicalType, expected: CanonicalType, in: Expression)
 
+    case unexpectedType(actual: CanonicalType, expected: CanonicalType, in: Expression)
+
     case exceptionTypeNotDeclared(in: Expression)
     case ambiguousThrowType(in: Expression)
     
@@ -64,34 +67,52 @@ enum TypeCheckError: Error {
     case conflictingExceptionDeclarations
     case illegalLocalExceptionType
     case illegalLocalOpenVariantException
-    
+
+    case undefinedTypeVariables([Name])
+    case notAGenericFunction(actual: CanonicalType, in: Expression)
+    case incorrectNumberOfTypeArguements(actual: Int, expected: Int, type: CanonicalType, in: Expression)
+    case ambiguousType(in: Expression)
+
     case canonizeError(CanonizeError)
     case subtypeError(SubtypeError, in: Expression)
     case unifyError(UnifyError, in: Expression)
     case patternError(PatternError, in: Expression)
 }
 
-extension TypeCheckError {
-    static func subtypeError(in expression: borrowing Expression) -> (SubtypeError) -> Self {
-        { [expression = copy expression] in
-            subtypeError($0, in: expression)
+extension SemanticError {
+    static func constrainError(
+        in expression: Expression
+    ) -> (ConstrainError) -> Self {
+        { error in
+            switch error {
+            case .subtypeError(let error):
+                .subtypeError(error, in: expression)
+            case .unifyError(let error):
+                .unifyError(error, in: expression)
+            case .unexpectedType(let actualType, let expectedType):
+                .unexpectedType(
+                    actual: actualType,
+                    expected: expectedType,
+                    in: expression
+                )
+            }
         }
     }
 
-    static func unifyError(in expression: borrowing Expression) -> (UnifyError) -> Self {
-        { [expression = copy expression] in
-            unifyError($0, in: expression)
-        }
+    static func subtypeError(in expression: Expression) -> (SubtypeError) -> Self {
+        { subtypeError($0, in: expression) }
     }
 
-    static func patternError(in expression: borrowing Expression) -> (PatternError) -> Self {
-        { [expression = copy expression] in
-            patternError($0, in: expression)
-        }
+    static func unifyError(in expression: Expression) -> (UnifyError) -> Self {
+        { unifyError($0, in: expression) }
+    }
+
+    static func patternError(in expression: Expression) -> (PatternError) -> Self {
+        { patternError($0, in: expression) }
     }
 }
 
-extension TypeCheckError {
+extension SemanticError {
     var code: String {
         switch self {
         case .unsupported,
@@ -133,6 +154,9 @@ extension TypeCheckError {
         case .unexpectedParametersNumber: "ERROR_UNEXPECTED_NUMBER_OF_PARAMETERS_IN_LAMBDA"
         case .unexpectedData: "ERROR_UNEXPECTED_DATA_FOR_NULLARY_LABEL"
         case .missingData: "ERROR_MISSING_DATA_FOR_LABEL"
+
+        case .unexpectedType: "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
+
         case .exceptionTypeNotDeclared: "ERROR_EXCEPTION_TYPE_NOT_DECLARED"
         case .ambiguousThrowType: "ERROR_AMBIGUOUS_THROW_TYPE"
         case .ambiguousReferenceType: "ERROR_AMBIGUOUS_REFERENCE_TYPE"
@@ -145,7 +169,12 @@ extension TypeCheckError {
         case .conflictingExceptionDeclarations: "ERROR_CONFLICTING_EXCEPTION_DECLARATIONS"
         case .illegalLocalExceptionType: "ERROR_ILLEGAL_LOCAL_EXCEPTION_TYPE"
         case .illegalLocalOpenVariantException: "ERROR_ILLEGAL_LOCAL_OPEN_VARIANT_EXCEPTION"
-            
+
+        case .undefinedTypeVariables: "ERROR_UNDEFINED_TYPE_VARIABLE"
+        case .notAGenericFunction: "ERROR_NOT_A_GENERIC_FUNCTION"
+        case .incorrectNumberOfTypeArguements: "ERROR_INCORRECT_NUMBER_OF_TYPE_ARGUMENTS"
+        case .ambiguousType: "ERROR_AMBIGUOUS_TYPE"
+
         // MARK: - CanonizeError
         case .canonizeError(.duplicateFunctionDeclaration): "ERROR_DUPLICATE_FUNCTION_DECLARATION"
         case .canonizeError(.parametersError(.duplicateTypeParameter, _)): "ERROR_DUPLICATE_TYPE_PARAMETER"
@@ -169,10 +198,13 @@ extension TypeCheckError {
         case .subtypeError(.unexpectedSubtype, _): "ERROR_UNEXPECTED_SUBTYPE"
 
         // MARK: - UnifyError
-        case .unifyError(.unexpectedType, _): "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION"
+        case .unifyError(.occursCheckInfiniteType, _): "ERROR_OCCURS_CHECK_INFINITE_TYPE"
 
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).code
+
+        case .unifyError(.unexpectedType(let actual, let expected), let expression):
+            Self.unexpectedType(actual: actual, expected: expected, in: expression).code
 
         // MARK: - PatternMatchError
         case .patternError(.unexpectedPattern, _): "ERROR_UNEXPECTED_PATTERN_FOR_TYPE"
@@ -181,15 +213,17 @@ extension TypeCheckError {
         case .patternError(.unexpectedNonNullaryVariantPattern, _): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
         case .patternError(.unexpectedNullaryVariantPattern, _): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
 
-        case .patternError(.canonizeError(let canonizeError), _):
-            Self.canonizeError(canonizeError).code
-        case .patternError(.subtypeError(let subtypeError), let expression):
-            Self.subtypeError(subtypeError, in: expression).code
+        case .patternError(.canonizeError(let error), _):
+            Self.canonizeError(error).code
+        case .patternError(.subtypeError(let error), let expression):
+            Self.subtypeError(error, in: expression).code
+        case .patternError(.unifyError(let error), let expression):
+            Self.unifyError(error, in: expression).code
         }
     }
 }
 
-extension TypeCheckError {
+extension SemanticError {
     var message: String {
         switch self {
         case .unsupported(let message),
@@ -198,7 +232,7 @@ extension TypeCheckError {
         case .undefined,
              .canonizeError(.undefined),
              .subtypeError(.undefined, _):
-            "undefined error"
+            "undefined or undocumented error"
 
         case .missingMain:
             "main function is missing from the program"
@@ -213,11 +247,26 @@ extension TypeCheckError {
             In expression:
                 \(indented: expression)
             """
+        case .notAGenericFunction(let (actualType), let expression):
+            """
+            Expression is expected to have a generic function type
+            But instead it's type is: \(actualType)
+            In expression:
+                \(indented: expression)
+            """
         case .incorrectArgumentsNumber(let actual, let expected, let type, let expression):
             """
             Was expecting \(expected) argument\(expected != 1 ? "s" : ""), \
             instead got \(actual) argument\(actual != 1 ? "s" : "")
             For the function of type: \(type)
+            In expression: 
+                \(indented: expression)
+            """
+        case .incorrectNumberOfTypeArguements(let actual, let expected, let type, let expression):
+            """
+            Was expecting \(expected) argument\(expected != 1 ? "s" : ""), \
+            instead got \(actual) argument\(actual != 1 ? "s" : "")
+            For the generic function of type: \(type)
             In expression: 
                 \(indented: expression)
             """
@@ -432,7 +481,20 @@ extension TypeCheckError {
             """
             Illegal local exception variant declaration!
             """
-            
+        case .undefinedTypeVariables(let names):
+            """
+            undefined type variables \(names.lazy.map(\.value).joined(separator: ", "))
+            """
+        case .unexpectedType(let actual, let expected, let expression):
+            """
+            Expected type: \(expected)
+            Instead have: \(actual)
+            In expression: 
+                \(indented: expression)
+            """
+        case .ambiguousType(let expression):
+            "A concrete type could not be reconstructed for expression: \(expression)"
+
         // MARK: - CanonizeError
         case .canonizeError(.duplicateFunctionDeclaration(let id)):
             """
@@ -483,15 +545,12 @@ extension TypeCheckError {
             """
 
         // MARK: - UnifyError
-        case .unifyError(.unexpectedType(let actual, let expected), let expression):
-            """
-            Expected type: \(expected)
-            Instead have: \(actual)
-            In expression: 
-                \(indented: expression)
-            """
+        case .unifyError(.occursCheckInfiniteType, let expression):
+            "Occurs check failed: an inferred type would be infinite. In expression: \(expression)"
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
+        case .unifyError(.unexpectedType(let actual, let expected), let expression):
+            Self.unexpectedType(actual: actual, expected: expected, in: expression).message
 
         // MARK: - PatternMatchError
         case .patternError(.unexpectedPattern(let pattern, let type), _):
@@ -522,15 +581,17 @@ extension TypeCheckError {
             provides a pattern to match for a label: '\(tag)', 
             but this tag must be null according to a matching type: \(type)
             """
-        case .patternError(.canonizeError(let canonizeError), _):
-            TypeCheckError.canonizeError(canonizeError).message
-        case .patternError(.subtypeError(let subtypeError), let expression):
-            Self.subtypeError(subtypeError, in: expression).message
+        case .patternError(.canonizeError(let error), _):
+            Self.canonizeError(error).message
+        case .patternError(.subtypeError(let error), let expression):
+            Self.subtypeError(error, in: expression).message
+        case .patternError(.unifyError(let error), let expression):
+            Self.unifyError(error, in: expression).message
         }
     }
 }
 
-extension TypeCheckError: CustomStringConvertible {
+extension SemanticError: @MainActor CustomStringConvertible {
     public var description: String {
         code + "\n" + message
     }

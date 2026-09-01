@@ -4,7 +4,7 @@ extension Context {
     func check(
         _ expression: consuming Expression,
         against expectedType: borrowing CanonicalType
-    ) throws(TypeCheckError) {
+    ) throws(SemanticError) {
         switch (expression, copy expectedType) {
         // MARK: - STLC
         case (
@@ -18,22 +18,20 @@ extension Context {
                         returnExpression: actualReturnExpression
                     ))
                 }
-            ) <!> TypeCheckError.canonizeError
+            ) <!> SemanticError.canonizeError
 
             for ((actualParameterName, actualParameterType), expectedParameterType) in zip(actualParameters, expectedParameterTypes) {
-                if extensions.contains(.structuralSubtyping) {
-                    try actualParameterType.requireSubtype(of: expectedParameterType)
-                        <!> TypeCheckError.subtypeError(in: expression)
-                } else {
-                    guard actualParameterType == expectedParameterType else {
-                        throw TypeCheckError.unexpectedParameterType(
-                            actual: actualParameterType,
-                            expected: expectedParameterType,
-                            name: actualParameterName,
-                            callee: copy expectedType,
-                            in: expression
-                        )
-                    }
+                do {
+                    try constrain(actualParameterType, to: expectedParameterType)
+                        <!> SemanticError.constrainError(in: expression)
+                } catch SemanticError.unexpectedType {
+                    throw SemanticError.unexpectedParameterType(
+                        actual: actualParameterType,
+                        expected: expectedParameterType,
+                        name: actualParameterName,
+                        callee: copy expectedType,
+                        in: expression
+                    )
                 }
             }
 
@@ -100,7 +98,7 @@ extension Context {
             .record(let expectedFields)
         ):
             let actualLabels = try OrderedSet(actualFields.lazy.map(\.label)) {
-                TypeCheckError.duplicateRecordFields($0, in: expression)
+                SemanticError.duplicateRecordFields($0, in: expression)
             }
 
             if !extensions.contains(.structuralSubtyping) {
@@ -264,7 +262,7 @@ extension Context {
             var localContext = self
 
             let bindings = try match(pattern, against: exceptionType)
-                <!> TypeCheckError.patternError(in: expression)
+                <!> SemanticError.patternError(in: expression)
             localContext.data.shadow(by: bindings)
 
             try localContext.check(handler, against: expectedType)
@@ -285,13 +283,7 @@ extension Context {
         default:
             let actualType = try infer(expression)
 
-            if extensions.contains(.structuralSubtyping) {
-                try actualType.requireSubtype(of: expectedType)
-                    <!> TypeCheckError.subtypeError(in: expression)
-            } else {
-                try unify(actual: copy actualType, expected: expectedType)
-                    <!> TypeCheckError.unifyError(in: expression)
-            }
+            try constrain(actualType, to: expectedType) <!> SemanticError.constrainError(in: expression)
         }
     }
 }
@@ -300,14 +292,14 @@ extension Context {
     func contextOfLet(
         cases: [(pattern: Pattern, value: Expression)],
         in expression: borrowing Expression
-    ) throws(TypeCheckError) -> Context {
+    ) throws(SemanticError) -> Context {
         var localContext = self
         var usedBindings = [] as Set<Name>
 
         for (pattern, value) in cases {
-            let valueType = try localContext.infer(value)
+            let valueType = localContext.solver.resolve(try localContext.infer(value))
             let bindings = try match(pattern, against: valueType)
-                <!> TypeCheckError.patternError(in: expression)
+                <!> SemanticError.patternError(in: expression)
 
             let duplicateBindings = usedBindings.intersection(bindings.names)
             guard duplicateBindings.isEmpty else {
@@ -319,6 +311,10 @@ extension Context {
 
             localContext.data.shadow(by: bindings)
             usedBindings.formUnion(bindings.names)
+
+            guard !valueType.containsAutoType else {
+                throw .ambiguousType(in: copy expression)
+            }
 
             do {
                 try valueType.checkExhaustiveness(of: single(pattern))
@@ -333,7 +329,7 @@ extension Context {
     func contextOfLetrec(
         cases: [(pattern: Pattern, value: Expression)],
         in expression: borrowing Expression
-    ) throws(TypeCheckError) -> Context {
+    ) throws(SemanticError) -> Context {
         guard let (pattern, value) = cases.first else {
             throw .unsupported(message: "#letrec-many-bindings is not supported")
         }
@@ -342,11 +338,11 @@ extension Context {
             throw .undefined(code: "ERROR_AMBIGUOUS_PATTERN_TYPE")
         }
 
-        let valueType = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+        let valueType = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
 
         var localContext = self
 
-        let bindings = try match(subpattern, against: valueType) <!> TypeCheckError.patternError(in: expression)
+        let bindings = try match(subpattern, against: valueType) <!> SemanticError.patternError(in: expression)
         localContext.data.shadow(by: bindings)
 
         try localContext.check(value, against: valueType)
@@ -358,12 +354,16 @@ extension Context {
         value: Expression,
         cases: [(pattern: Pattern, value: Expression)],
         in expression: borrowing Expression
-    ) throws(TypeCheckError) -> NonEmpty<[(localContext: Context, value: Expression)]> {
+    ) throws(SemanticError) -> NonEmpty<[(localContext: Context, value: Expression)]> {
         guard let cases = NonEmpty(rawValue: cases) else {
             throw .illegalEmptyMatch(in: copy expression)
         }
 
-        let matchedType = try infer(value)
+        let matchedType = solver.resolve(try infer(value))
+
+        guard !matchedType.containsAutoType else {
+            throw .ambiguousType(in: copy expression)
+        }
 
         do {
             try matchedType.checkExhaustiveness(of: cases.map(\.pattern))
@@ -371,10 +371,10 @@ extension Context {
             throw .nonexhaustiveMatchPatterns(for: copy expression, missing: error.missingPatterns)
         }
 
-        return try cases.map { pattern, value throws(TypeCheckError) in
+        return try cases.map { pattern, value throws(SemanticError) in
             var localContext = self
 
-            let bindings = try match(pattern, against: matchedType) <!> TypeCheckError.patternError(in: expression)
+            let bindings = try match(pattern, against: matchedType) <!> SemanticError.patternError(in: expression)
             localContext.data.shadow(by: bindings)
 
             return (localContext: localContext, value: value)
@@ -386,12 +386,12 @@ extension Context {
         rawType: RawType,
         pattern: Pattern,
         in expression: borrowing Expression
-    ) throws(TypeCheckError) -> Context {
+    ) throws(SemanticError) -> Context {
         let castType = try infer(.typeCast(value: value, as: rawType))
 
         var localContext = self
 
-        let bindings = try match(pattern, against: castType) <!> TypeCheckError.patternError(in: expression)
+        let bindings = try match(pattern, against: castType) <!> SemanticError.patternError(in: expression)
         localContext.data.shadow(by: bindings)
 
         return localContext

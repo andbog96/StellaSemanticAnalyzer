@@ -1,4 +1,5 @@
 extension Context {
+    @MainActor
     func match(
         _ pattern: consuming Pattern,
         against type: consuming CanonicalType
@@ -51,7 +52,7 @@ extension Context {
                     guard let type = types[label] else {
                         throw .unexpectedPattern(
                             .record(fields: [(label: label, pattern: pattern)]),
-                            for: type
+                            for: copy type
                         )
                     }
 
@@ -100,38 +101,28 @@ extension Context {
             .fold(rejectingDuplicateNamesWith: duplicateLetBindingError(in: pattern))
 
         // MARK: - as, cast
-        case (.ascription(let pattern, let rawType), _):
+        case (.ascription(let castPattern, let rawType), _):
             let castType = try CanonicalType(from: rawType) <!> PatternError.canonizeError
 
-            if extensions.contains(.structuralSubtyping) {
-                try type.requireSubtype(of: castType) <!> PatternError.subtypeError
-            } else {
-                try unify(actual: castType, expected: type) <!> { (_: UnifyError) in
-                    PatternError.unexpectedPattern(pattern, for: type)
-                }
-            }
+            // upcast
+            try constrain(type, to: castType) <!> PatternError.constrainError(pattern, for: type)
 
-            return try match(pattern, against: castType)
+            return try match(castPattern, against: castType)
 
-        case (.cast(let pattern, let rawType), _):
+        case (.cast(let castPattern, let rawType), _):
             let castType = try CanonicalType(from: rawType) <!> PatternError.canonizeError
 
-            guard type.isSubtypeComparable(with: castType) else {
-                throw .unexpectedPattern(pattern, for: type)
-            }
+            // downcast
+            try constrain(castType, to: type) <!> PatternError.constrainError(pattern, for: type)
 
-            do {
-                return try match(pattern, against: castType)
-            } catch {
-                throw .unexpectedPattern(pattern, for: type)
-            }
+            return try match(castPattern, against: castType)
 
         default:
             throw .unexpectedPattern(pattern, for: type)
         }
     }
 
-    private func duplicateLetBindingError(in pattern: Pattern) -> (_ duplicates: [Name]) -> PatternError {
+    private func duplicateLetBindingError(in pattern: consuming Pattern) -> (_ duplicates: [Name]) -> PatternError {
         { duplicates in
             .duplicateLetBinding(duplicates, in: pattern)
         }
@@ -148,4 +139,23 @@ enum PatternError: Error {
 
     case canonizeError(CanonizeError)
     case subtypeError(SubtypeError)
+    case unifyError(UnifyError)
+}
+
+extension PatternError {
+    static func constrainError(
+        _ pattern: Pattern,
+        for type: CanonicalType
+    ) -> (ConstrainError) -> Self {
+        { error in
+            switch error {
+            case .subtypeError(let error):
+                .subtypeError(error)
+            case .unifyError(let error):
+                .unifyError(error)
+            case .unexpectedType(let actualType, let expectedType):
+                .unexpectedPattern(pattern, for: type)
+            }
+        }
+    }
 }

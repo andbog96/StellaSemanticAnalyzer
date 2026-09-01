@@ -1,4 +1,5 @@
 import Foundation
+import SwiftParsec
 
 guard let data = try FileHandle.standardInput.readToEnd(),
       let programText = String(data: data, encoding: .utf8) else {
@@ -8,9 +9,9 @@ guard let data = try FileHandle.standardInput.readToEnd(),
 do {
     let program = try Program.parser.run(sourceName: "stdin", input: programText)
     _ = try Context(from: program)
-} catch let error as StellaParseError {
+} catch let error as ParseError {
     quit(message: error.description)
-} catch let error as TypeCheckError {
+} catch let error as SemanticError {
     print(error)
 } catch {
     quit(message: error.localizedDescription)

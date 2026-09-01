@@ -15,17 +15,33 @@ enum Declaration: Sendable {
 
 extension Declaration {
     static func lambda(
-        parameters: [(name: Name, rawType: RawType)],
+        typeVariables: [Name] = [],
+        parameters: [(name: Name, rawType: RawType)] = [],
         returnExpression: Expression
     ) -> Self {
         .function(
             name: "",
-            typeVariables: [],
+            typeVariables: typeVariables,
             parameters: parameters,
             returnType: nil,
             throwTypes: [],
             declarations: [],
             returnExpression: returnExpression
+        )
+    }
+
+    static func forall(
+        typeVariables: [Name],
+        returnType: RawType,
+    ) -> Self {
+        .function(
+            name: "",
+            typeVariables: typeVariables,
+            parameters: [],
+            returnType: returnType,
+            throwTypes: [],
+            declarations: [],
+            returnExpression: .panic // bullshit
         )
     }
 }

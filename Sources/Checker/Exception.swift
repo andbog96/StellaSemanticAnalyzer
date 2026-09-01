@@ -1,26 +1,27 @@
+@MainActor
 enum Exception {
     case type(CanonicalType)
     case variant([Label: CanonicalType])
 }
 
 extension Exception {
-    init?(from declarations: [Declaration]) throws(TypeCheckError) {
+    init?(from declarations: [Declaration]) throws(SemanticError) {
         var result = nil as Self?
 
         for declaration in declarations {
             switch (result, declaration) {
             case (nil, .exceptionType(let rawType)):
-                let type = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+                let type = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
 
                 result = .type(type)
 
             case (nil, .exceptionVariant(let label, let rawType)):
-                let type = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+                let type = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
 
                 result = .variant([label: type])
 
             case (.variant(var cases), .exceptionVariant(let label, let rawType)):
-                let type = try CanonicalType(from: rawType) <!> TypeCheckError.canonizeError
+                let type = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
 
                 guard cases.updateValue(type, forKey: label) == nil else {
                     throw .duplicateExceptionVariant(label)

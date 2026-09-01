@@ -12,7 +12,7 @@ private struct StandardErrorOutputStream: TextOutputStream {
 private var standardError = StandardErrorOutputStream()
 
 @MainActor
-func print(_ error: TypeCheckError) {
+func print(_ error: SemanticError) {
     print(error, to: &standardError)
 }
 
