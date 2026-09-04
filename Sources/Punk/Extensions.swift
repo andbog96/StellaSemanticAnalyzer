@@ -76,8 +76,8 @@ extension OrderedSet {
 
 extension Dictionary {
     init<E: Error>(
-        uniqueKeysWithValues keysAndValues: some Sequence<(key: Key, value: Value)>,
-        rejectingDuplicateKeysWith duplicateKeysError: (_ duplicateKeys: [Key]) -> E
+        uniqueKeysWithValues keysAndValues: some Sequence<(Key, Value)>,
+        rejectingDuplicateKeysWith duplicateKeysError: (_ duplicates: [Key]) -> E
     ) throws(E) {
         self = [Key: Value](minimumCapacity: keysAndValues.underestimatedCount)
 

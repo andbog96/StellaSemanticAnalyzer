@@ -35,12 +35,20 @@ extension Program: StaticParsable {
     .map(Self.init(extensions:declarations:)) <?> "stella program"
 }
 
-extension Name: StaticParsable {
-    static let parser: Parser<Self> = lexer.identifier.map(Self.init(value:))
+extension ValueName: StaticParsable {
+    static let parser: Parser<Self> = lexer.identifier.map(Self.init(description:))
 }
 
-extension Label: StaticParsable {
-    static let parser: Parser<Self> = lexer.identifier.map(Self.init(value:))
+extension TypeName: StaticParsable {
+    static let parser: Parser<Self> = lexer.identifier.map(Self.init(description:))
+}
+
+extension RecordLabel: StaticParsable {
+    static let parser: Parser<Self> = lexer.identifier.map(Self.init(description:))
+}
+
+extension VariantLabel: StaticParsable {
+    static let parser: Parser<Self> = lexer.identifier.map(Self.init(description:))
 }
 
 extension MemoryAddress: StaticParsable {
@@ -73,16 +81,16 @@ extension Declaration: StaticParsable {
                 rule {
                     Keyword.generic
                     Keyword.fn
-                    Name.parser <?> "function name"
-                    Name.parser.commaSeparated.inBrackets <?> "type variables"
+                    ValueName.parser <?> "function name"
+                    TypeName.parser.commaSeparated.inBrackets <?> "type variables"
                 }
                 .map { (name: $0, typeVariables: $1) }
 
                 rule {
                     Keyword.fn
-                    Name.parser <?> "function name"
+                    ValueName.parser <?> "function name"
                 }
-                .map { (name: $0, typeVariables: [Name]()) }
+                .map { (name: $0, typeVariables: [] as [TypeName]) }
             }
             parameters
             returnType
@@ -101,18 +109,15 @@ extension Declaration: StaticParsable {
                 declarations: declarations,
                 returnExpression: returnExpression,
             )
-        } 
-        <?> "function"
+        } <?> "function"
     }
     
-    static let parameters: Parser<[(name: Name, rawType: RawType)]> = rule {
-        Name.self
+    static let parameters: Parser<[(name: ValueName, rawType: RawType)]> = rule {
+        ValueName.self
         Sign.colon
         RawType.self
     }
-    .map {
-        (name: $0, rawType: $1)
-    }
+    .map { (name: $0, rawType: $1) }
     .commaSeparated
     .inParens <?> "parameters"
 
@@ -131,23 +136,28 @@ extension Declaration: StaticParsable {
     static let returnType: Parser<RawType?> = rule {
         Sign.arrow
         RawType.self
-    }.optional <?> "return type"
+    }
+    .optional <?> "return type"
 
     static let throwTypes: Parser<[RawType]> = rule {
         Keyword.throws
         RawType.parser.commaSeparated1
-    }.optional.map { $0 ?? [] } <?> "throw type"
+    }
+    .optional
+    .map { $0 ?? [] } <?> "throw type"
 
     static let exceptionType: Parser<Self> = rule {
         Keyword.type
         Sign.equals
         RawType.parser
-    }.map(Self.exceptionType) <?> "exception type"
+    }
+    .map(Self.exceptionType) <?> "exception type"
 
     static let exceptionVariant: Parser<Self> = rule {
         Keyword.variant
-        Label.self
+        VariantLabel.self
         Sign.colon
         RawType.self
-    }.map(Self.exceptionVariant) <?> "exception variant"
+    }
+    .map(Self.exceptionVariant) <?> "exception variant"
 }

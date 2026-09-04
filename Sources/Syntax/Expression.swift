@@ -1,7 +1,7 @@
 enum Expression: Sendable {
     // MARK: - STLC
-    case `var`(Name)
-    indirect case abstraction(parameters: [(name: Name, rawType: RawType)], returnExpression: Expression)
+    case `var`(ValueName)
+    indirect case abstraction(parameters: [(name: ValueName, rawType: RawType)], returnExpression: Expression)
     indirect case application(calle: Expression, arguments: [Expression])
     
     // MARK: - Bool
@@ -21,11 +21,11 @@ enum Expression: Sendable {
     
     // MARK: - #pairs, #tuples
     case tuple(elements: [Expression])
-    indirect case dotTuple(Expression, index: Int)
+    indirect case dotTuple(Expression, index: TupleIndex)
 
     // MARK: - #records
-    case record(fields: [(label: Label, value: Expression)])
-    indirect case dotRecord(Expression, Label)
+    case record(fields: [(label: RecordLabel, value: Expression)])
+    indirect case dotRecord(Expression, RecordLabel)
 
     // MARK: - #let-patterns
     indirect case `let`(cases: [(pattern: Pattern, value: Expression)], inExpression: Expression)
@@ -41,7 +41,7 @@ enum Expression: Sendable {
     indirect case inr(right: Expression)
 
     // MARK: - #variants
-    indirect case variant(Label, payload: Expression?)
+    indirect case variant(VariantLabel, payload: Expression?)
     indirect case match(value: Expression, cases: [(pattern: Pattern, value: Expression)])
 
     // MARK: - #lists
@@ -84,6 +84,6 @@ enum Expression: Sendable {
     )
 
     // MARK: - #universal-types
-    indirect case typeAbstraction(variables: [Name], body: Expression)
+    indirect case typeAbstraction(variables: [TypeName], body: Expression)
     indirect case typeApplication(calle: Expression, parameters: [RawType])
 }

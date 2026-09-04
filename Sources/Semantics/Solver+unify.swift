@@ -46,7 +46,7 @@ extension Solver {
 
         case (.record(let actualFields), .record(let expectedFields)):
             guard actualFields.keys == expectedFields.keys else { throw unexpectedTypeError }
-            var fields: [Label: CanonicalType] = [:]
+            var fields: [RecordLabel: CanonicalType] = [:]
             for (key, actualField) in actualFields {
                 guard let expectedField = expectedFields[key] else { throw unexpectedTypeError }
                 fields[key] = try unify(actual: actualField, expected: expectedField)

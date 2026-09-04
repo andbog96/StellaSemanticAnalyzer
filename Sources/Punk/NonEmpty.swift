@@ -61,15 +61,12 @@ extension NonEmpty: CustomStringConvertible {
     }
 }
 
-extension NonEmpty: Equatable where Wrapped: Equatable {}
-
-extension NonEmpty: Hashable where Wrapped: Hashable {}
-
-
 extension NonEmpty: Sendable where Wrapped: Sendable {}
+extension NonEmpty: Equatable where Wrapped: Equatable {}
+extension NonEmpty: Hashable where Wrapped: Hashable {}
 
 extension NonEmpty: RawRepresentable {}
 
-public func single<T>(_ element: T) -> NonEmpty<some Collection<T>> {
-    NonEmpty<CollectionOfOne<T>>(rawValue: CollectionOfOne(element)).unsafelyUnwrapped
+public func single<T>(_ element: T) -> NonEmpty<CollectionOfOne<T>> {
+    NonEmpty(rawValue: CollectionOfOne(element)).unsafelyUnwrapped
 }

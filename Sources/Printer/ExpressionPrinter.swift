@@ -72,7 +72,7 @@ private func patternBranch(pattern: Pattern, expr: Expression) -> String {
     "\(pattern) => \(expr)"
 }
 
-private func recordBinding(label: Label, expr: Expression) -> String {
+private func recordBinding(label: RecordLabel, expr: Expression) -> String {
     "\(label) = \(expr)"
 }
 

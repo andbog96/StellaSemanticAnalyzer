@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "StellaTypeChecker",
+    name: "StellaSemanticAnalyzer",
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/davedufresne/SwiftParsec.git", from: "4.0.1"),
@@ -12,7 +12,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "StellaTypeChecker",
+            name: "StellaSemanticAnalyzer",
             dependencies: [
                 .product(name: "SwiftParsec", package: "SwiftParsec"),
                 .product(name: "Collections", package: "swift-collections")
@@ -22,8 +22,8 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "StellaTypeCheckerTests",
-            dependencies: [.target(name: "StellaTypeChecker")],
+            name: "StellaSemanticAnalyzerTests",
+            dependencies: [.target(name: "StellaSemanticAnalyzer")],
         )
     ]
 )

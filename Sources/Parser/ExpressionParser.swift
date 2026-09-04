@@ -91,7 +91,8 @@ extension Expression {
                     // prefixed by a star, no infinite recursion is possible
                     Sign.star
                     factor
-                }.map(Self.dereference) <?> "dereference"
+                }
+                .map(Self.dereference) <?> "dereference"
                 suffix(using: expression)
             }
         }
@@ -167,7 +168,7 @@ extension Expression {
 
         lexer.integer.map(Self.constInt)
 
-        Name.map(Self.var)
+        ValueName.map(Self.var)
         MemoryAddress.map(Self.constMemory)
     }
 

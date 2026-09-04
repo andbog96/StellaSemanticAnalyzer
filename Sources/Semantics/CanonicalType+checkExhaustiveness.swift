@@ -1,4 +1,4 @@
-private let wildcard = Pattern.var § Name(value: "_")
+private let wildcard = Pattern.var("_")
 
 extension CanonicalType {
     func checkExhaustiveness(of patterns: NonEmpty<some Collection<Pattern>>) throws(ExhaustivenessError) {
@@ -76,7 +76,8 @@ extension CanonicalType {
 private extension Pattern {
     func isCovered(by pattern: Pattern) -> Bool {
         switch (self, pattern) {
-        case (_, .var):
+        case (_, .var),
+             (.var, _):
             return true
             
         case (.false, .false),

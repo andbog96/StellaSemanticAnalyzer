@@ -2,18 +2,18 @@
 struct Context {
     let extensions: Set<Extension>
     let exceptionType: CanonicalType?
-    var data: TypeData
+    var data: ValueData
 
     @MutableBox
     var solver = Solver()
-    var typeVariables = [] as Set<Name>
+    var typeVariables = [] as Set<TypeName>
 
     init(from program: Program) throws(SemanticError) {
         extensions = program.extensions
         exceptionType = try Exception(from: program.declarations).map(CanonicalType.init)
 
         let functions = try Functions(from: program.declarations) <!> SemanticError.canonizeError
-        data = TypeData(functions)
+        data = ValueData(functions)
 
         guard case .function(let mainParameters, _) = try? data["main"] else {
             throw .missingMain

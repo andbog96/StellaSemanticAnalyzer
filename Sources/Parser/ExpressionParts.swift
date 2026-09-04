@@ -35,7 +35,7 @@ extension Expression: StaticParsable {
     static func generic(using thisParser: Parser<Self>) -> Parser<Self> {
         rule {
             Keyword.generic
-            Name.parser
+            TypeName.parser
                 .commaSeparated
                 .inBrackets
             thisParser
@@ -52,12 +52,13 @@ extension Expression: StaticParsable {
                 thisParser
             }
             .inBraces
-        }.map(abstraction(parameters:returnExpression:)) <?> "lambda"
+        }
+        .map(abstraction(parameters:returnExpression:)) <?> "lambda"
     }
 
     static func variant(using thisParser: Parser<Self>) -> Parser<Self> {
         rule {
-            Label.self
+            VariantLabel.self
             rule {
                 Sign.equals
                 thisParser
@@ -135,8 +136,8 @@ extension Expression: StaticParsable {
     static let postfixDot: Parser<(Self) -> Self> =
         Sign.dot.parser.flatMap { () in
             alternatives {
-                lexer.natural.map { number in { dotTuple ($0, index: number) } }
-                Label.map { attribute in { dotRecord($0, attribute) } }
+                lexer.natural.map { number in { dotTuple($0, index: .init(value: number)) } }
+                RecordLabel.map { attribute in { dotRecord($0, attribute) } }
             }
         }
 

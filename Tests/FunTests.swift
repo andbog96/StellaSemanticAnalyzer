@@ -1,19 +1,19 @@
 import Testing
-@testable import StellaTypeChecker
+@testable import StellaSemanticAnalyzer
 
+@MainActor
 @Suite
 struct FunTests {
-    @Test("Ambiguous inferred match type is rejected")
-    @MainActor
+    @Test
     func ambiguousMatchType() throws {
         let source = """
-        language core;
-        extend with #type-reconstruction;
+language core;
+extend with #type-reconstruction;
 
-        fn main(x : auto) -> Nat {
-            return match x { y => 0 }
-        }
-        """
+fn main(x : auto) -> Nat {
+    return match x { y => 0 }
+}
+"""
 
         let program = try Program.parser.run(sourceName: "test", input: source)
 
@@ -23,8 +23,8 @@ struct FunTests {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected ERROR_AMBIGUOUS_TYPE")
-        } catch let error as SemanticError {
+            Issue.record("Expected error")
+        } catch let error {
             #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }

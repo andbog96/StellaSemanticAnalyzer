@@ -62,7 +62,7 @@ extension Pattern: StaticParsable {
 
     static func variant(using thisParser: Parser<Self>) -> Parser<Self> {
         rule {
-            Label.self
+            VariantLabel.self
             rule {
                 Sign.equals
                 thisParser
@@ -98,7 +98,7 @@ extension Pattern: StaticParsable {
         Keyword.true.map { `true` }
         Keyword.false.map { `false` }
         Keyword.unit.map { unit }
-        Name.map(`var`)
+        ValueName.map(`var`)
         lexer.natural.map {
             (0..<$0).reduce(zero) { pattern, _ in
                 succ(pattern)

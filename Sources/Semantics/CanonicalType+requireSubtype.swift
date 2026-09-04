@@ -99,6 +99,10 @@ extension CanonicalType {
         case (.list(let subtypeElement), .list(let supertypeElement)):
             try subtypeElement.requireSubtype(of: supertypeElement)
 
+        case (.reference(let subtypeValue), .reference(let supertypeValue))
+        where subtypeValue == supertypeValue:
+            break
+
         case (
             .forall(let subtypeVariables, let subtypeBody),
             .forall(let supertypeVariables, let supertypeBody)
@@ -120,8 +124,8 @@ enum SubtypeError: Error {
 
     case incorrectArgumentsNumber(actual: Int, expected: Int, type: CanonicalType)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType)
-    case missingRecordFields([Label], for: CanonicalType)
-    case unexpectedVariantLabels([Label], for: CanonicalType)
+    case missingRecordFields([RecordLabel], for: CanonicalType)
+    case unexpectedVariantLabels([VariantLabel], for: CanonicalType)
 
     case unexpectedSubtype(CanonicalType, of: CanonicalType)
 }

@@ -3,11 +3,15 @@ extension Context {
     func match(
         _ pattern: consuming Pattern,
         against type: consuming CanonicalType
-    ) throws(PatternError) -> TypeData {
+    ) throws(PatternError) -> ValueData {
+        func duplicateLetBindingError(in pattern: consuming Pattern) -> (_ duplicates: [ValueName]) -> PatternError {
+            { .duplicateLetBinding($0, in: pattern) }
+        }
+        
         switch (pattern, type) {
         // MARK: - var
         case (.var(let name), _):
-            return TypeData(name: name, type: type)
+            return ValueData(name: name, type: type)
 
         // MARK: - Bool
         case (.false, .bool),
@@ -39,11 +43,9 @@ extension Context {
             where patterns.count == types.count:
             
             let patterns = try Dictionary(
-                uniqueKeysWithValues: patterns.lazy.map { label, pattern in
-                    (key: label, value: pattern)
-                },
-                rejectingDuplicateKeysWith: { duplicates in
-                    PatternError.duplicateRecordPatternFields(duplicates, in: pattern)
+                uniqueKeysWithValues: patterns,
+                rejectingDuplicateKeysWith: {
+                    PatternError.duplicateRecordPatternFields($0, in: pattern)
                 }
             )
 
@@ -122,9 +124,39 @@ extension Context {
         }
     }
 
-    private func duplicateLetBindingError(in pattern: consuming Pattern) -> (_ duplicates: [Name]) -> PatternError {
-        { duplicates in
-            .duplicateLetBinding(duplicates, in: pattern)
+    func annotatedType(
+        of pattern: borrowing Pattern
+    ) throws(PatternError) -> CanonicalType {
+        switch pattern {
+        case .ascription(_, let rawType):
+            try CanonicalType(from: rawType)
+                <!> PatternError.canonizeError
+
+        case .tuple(let patterns):
+            .tuple(elements: try patterns.map(annotatedType(of:)))
+
+        case .record(let fields):
+            try CanonicalType.record(fields:) § Dictionary(
+                uniqueKeysWithValues: fields,
+                rejectingDuplicateKeysWith: {
+                    PatternError.duplicateRecordPatternFields($0, in: copy pattern)
+                }
+            )
+            .mapValues(annotatedType(of:))
+
+        case .false,
+             .true:
+            .bool
+
+        case .zero,
+             .succ:
+            .nat
+
+        case .unit:
+            .unit
+
+        default:
+            throw .ambiguousPatternType(copy pattern)
         }
     }
 }
@@ -132,10 +164,11 @@ extension Context {
 enum PatternError: Error {
     case unexpectedPattern(Pattern, for: CanonicalType)
 
-    case duplicateLetBinding([Name], in: Pattern)
-    case duplicateRecordPatternFields([Label], in: Pattern)
-    case unexpectedNonNullaryVariantPattern(Label, Pattern, in: CanonicalType)
-    case unexpectedNullaryVariantPattern(Label, expected: CanonicalType, Pattern, in: CanonicalType)
+    case duplicateLetBinding([ValueName], in: Pattern)
+    case duplicateRecordPatternFields([RecordLabel], in: Pattern)
+    case unexpectedNonNullaryVariantPattern(VariantLabel, Pattern, in: CanonicalType)
+    case unexpectedNullaryVariantPattern(VariantLabel, expected: CanonicalType, Pattern, in: CanonicalType)
+    case ambiguousPatternType(Pattern)
 
     case canonizeError(CanonizeError)
     case subtypeError(SubtypeError)
@@ -153,7 +186,7 @@ extension PatternError {
                 .subtypeError(error)
             case .unifyError(let error):
                 .unifyError(error)
-            case .unexpectedType(let actualType, let expectedType):
+            case .unexpectedType:
                 .unexpectedPattern(pattern, for: type)
             }
         }

@@ -1,15 +1,3 @@
-extension Name: CustomStringConvertible {
-    var description: String {
-        value
-    }
-}
-
-extension Label: CustomStringConvertible {
-    var description: String {
-        value
-    }
-}
-
 extension DefaultStringInterpolation {
     /// https://forums.swift.org/t/multi-line-string-nested-indentation-with-interpolation/36933
     mutating func appendInterpolation(indented string: CustomStringConvertible) {
@@ -203,9 +191,9 @@ extension RawType: CustomStringConvertible {
     }
 }
 
-private func fieldDecl(for label: Label, and type: some CustomStringConvertible?) -> String {
+private func fieldDecl(for label: VariantLabel, and type: some CustomStringConvertible?) -> String {
     guard let type else {
-        return label.value
+        return label.description
     }
     
     return "\(label) : \(type)"

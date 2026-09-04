@@ -1,7 +1,7 @@
 @MainActor
 enum Exception {
     case type(CanonicalType)
-    case variant([Label: CanonicalType])
+    case variant([VariantLabel: CanonicalType])
 }
 
 extension Exception {

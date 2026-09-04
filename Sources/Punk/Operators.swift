@@ -60,14 +60,3 @@ public func • <A, B, C, E: Error>(
 ) -> (A) throws(E) -> C {
     { x in try f(g(x)) }
 }
-
-infix operator ?! : NilCoalescingPrecedence
-
-@inlinable
-public func ?! <T, E: Error>(lhs: T?, rhs: @autoclosure () -> E) throws(E) -> T {
-    if let lhs {
-        lhs
-    } else {
-        throw rhs()
-    }
-}

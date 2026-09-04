@@ -9,10 +9,10 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case unit
 
     case tuple(elements: [Self])
-    case record(fields: [Label: Self])
+    case record(fields: [RecordLabel: Self])
 
     indirect case sum(left: Self, right: Self)
-    case variant(cases: [Label: Self?])
+    case variant(cases: [VariantLabel: Self?])
 
     indirect case list(Self)
 
@@ -22,8 +22,8 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case bottom
 
     case auto(TypeVariableID)
-    case variable(Name)
-    indirect case forall(variables: OrderedSet<Name>, body: Self)
+    case variable(TypeName)
+    indirect case forall(variables: OrderedSet<TypeName>, body: Self)
 }
 
 extension CanonicalType {
@@ -73,7 +73,7 @@ extension CanonicalType {
         }
     }
 
-    func substituting(_ substitutions: [Name: CanonicalType]) -> Self {
+    func substituting(_ substitutions: [TypeName: CanonicalType]) -> Self {
         switch self {
         case .variable(let name):
             substitutions[name] ?? self
@@ -116,7 +116,7 @@ extension CanonicalType {
         }
     }
 
-    func freeVariables(except excluded: Set<Name>) -> Set<Name> {
+    func freeVariables(except excluded: Set<TypeName>) -> Set<TypeName> {
         switch self {
         case .variable(let name):
             excluded.contains(name) ? [] : [name]
@@ -185,11 +185,9 @@ extension CanonicalType {
         
         case .record(let fields):
             try Self.record(fields:) § Dictionary(
-                uniqueKeysWithValues: fields.lazy.map { label, type in
-                    (key: label, value: type)
-                },
-                rejectingDuplicateKeysWith: { duplicates in
-                    CanonizeError.duplicateRecordTypeFields(duplicates, in: rawType)
+                uniqueKeysWithValues: fields,
+                rejectingDuplicateKeysWith: {
+                    CanonizeError.duplicateRecordTypeFields($0, in: rawType)
                 }
             )
             .mapValues(Self.init(from:))
@@ -202,11 +200,9 @@ extension CanonicalType {
         
         case .variant(let cases):
             try Self.variant(cases:) § Dictionary(
-                uniqueKeysWithValues: cases.lazy.map { label, type in
-                    (key: label, value: type)
-                },
-                rejectingDuplicateKeysWith: { duplicates in
-                    CanonizeError.duplicateVariantTypeFields(duplicates, in: rawType)
+                uniqueKeysWithValues: cases,
+                rejectingDuplicateKeysWith: {
+                    CanonizeError.duplicateVariantTypeFields($0, in: rawType)
                 }
             )
             .mapValues { rawType throws(CanonizeError) in
@@ -245,9 +241,9 @@ extension CanonicalType {
     }
 }
 
-extension Sequence<(name: Name, rawType: RawType)> {
+extension Sequence<(name: ValueName, rawType: RawType)> {
     @MainActor
-    func canonized() throws(CanonizeError) -> some Sequence<(name: Name, type: CanonicalType)> {
+    func canonized() throws(CanonizeError) -> some Sequence<(name: ValueName, type: CanonicalType)> {
         try map { name, rawType throws(CanonizeError) in
             (
                 name: name,
@@ -258,7 +254,7 @@ extension Sequence<(name: Name, rawType: RawType)> {
 }
 
 extension Function.Parameters {
-    init(from parameters: some Sequence<(name: Name, type: CanonicalType)>) throws(ParametersError) {
+    init(from parameters: some Sequence<(name: ValueName, type: CanonicalType)>) throws(ParametersError) {
         self = OrderedDictionary(minimumCapacity: parameters.underestimatedCount)
 
         for (name, type) in parameters {
@@ -273,14 +269,14 @@ enum CanonizeError: Error {
     case unsupported(message: String)
     case undefined(code: String)
 
-    case duplicateFunctionDeclaration(Name)
-    case duplicateRecordTypeFields([Label], in: RawType)
-    case duplicateVariantTypeFields([Label], in: RawType)
+    case duplicateFunctionDeclaration(ValueName)
+    case duplicateRecordTypeFields([RecordLabel], in: RawType)
+    case duplicateVariantTypeFields([VariantLabel], in: RawType)
 
     case parametersError(ParametersError, in: Declaration)
 }
 
 enum ParametersError: Error {
-    case duplicateFunctionParameter(Name)
-    case duplicateTypeParameter([Name])
+    case duplicateFunctionParameter(ValueName)
+    case duplicateTypeParameter([TypeName])
 }

@@ -112,19 +112,21 @@ extension Context {
                 }
             }
 
-            for (label, expression) in actualFields {
-                guard let expectedType = expectedFields[label] else {
-                    let missingLabels = Set(expectedFields.keys).subtracting(actualLabels)
-                    assert(!missingLabels.isEmpty)
+            let missingLabels = Set(expectedFields.keys).subtracting(actualLabels)
+            if !missingLabels.isEmpty {
+                throw .missingRecordFields(
+                    Array(missingLabels),
+                    for: copy expectedType,
+                    in: expression
+                )
+            }
 
-                    throw .missingRecordFields(
-                        Array(missingLabels),
-                        for: copy expectedType,
-                        in: expression
-                    )
+            for (label, actualValue) in actualFields {
+                if let expectedType = expectedFields[label] {
+                    try check(actualValue, against: expectedType)
+                } else {
+                    assertionFailure()
                 }
-
-                try check(expression, against: expectedType)
             }
 
         case (.record, _):
@@ -234,7 +236,11 @@ extension Context {
             throw .unexpectedReference(expected: copy expectedType, in: expression)
 
         case (.dereference(let reference), _):
-            try check(reference, against: .reference(copy expectedType))
+            do {
+                try check(reference, against: .reference(copy expectedType))
+            } catch .subtypeError(.unexpectedSubtype(.reference(let actual), of: .reference(let expected)), _) {
+                try actual.requireSubtype(of: expected) <!> SemanticError.subtypeError(in: expression)
+            }
 
         // MARK: - #panic
         case (.panic, _):
@@ -294,7 +300,7 @@ extension Context {
         in expression: borrowing Expression
     ) throws(SemanticError) -> Context {
         var localContext = self
-        var usedBindings = [] as Set<Name>
+        var usedBindings = [] as Set<ValueName>
 
         for (pattern, value) in cases {
             let valueType = localContext.solver.resolve(try localContext.infer(value))
@@ -334,15 +340,11 @@ extension Context {
             throw .unsupported(message: "#letrec-many-bindings is not supported")
         }
 
-        guard case .ascription(let subpattern, let rawType) = pattern else {
-            throw .undefined(code: "ERROR_AMBIGUOUS_PATTERN_TYPE")
-        }
-
-        let valueType = try CanonicalType(from: rawType) <!> SemanticError.canonizeError
+        let valueType = try annotatedType(of: pattern) <!> SemanticError.patternError(in: expression)
 
         var localContext = self
 
-        let bindings = try match(subpattern, against: valueType) <!> SemanticError.patternError(in: expression)
+        let bindings = try match(pattern, against: valueType) <!> SemanticError.patternError(in: expression)
         localContext.data.shadow(by: bindings)
 
         try localContext.check(value, against: valueType)
@@ -365,13 +367,7 @@ extension Context {
             throw .ambiguousType(in: copy expression)
         }
 
-        do {
-            try matchedType.checkExhaustiveness(of: cases.map(\.pattern))
-        } catch {
-            throw .nonexhaustiveMatchPatterns(for: copy expression, missing: error.missingPatterns)
-        }
-
-        return try cases.map { pattern, value throws(SemanticError) in
+        let result = try cases.map { pattern, value throws(SemanticError) in
             var localContext = self
 
             let bindings = try match(pattern, against: matchedType) <!> SemanticError.patternError(in: expression)
@@ -379,6 +375,14 @@ extension Context {
 
             return (localContext: localContext, value: value)
         }
+
+        do {
+            try matchedType.checkExhaustiveness(of: cases.map(\.pattern))
+        } catch {
+            throw .nonexhaustiveMatchPatterns(for: copy expression, missing: error.missingPatterns)
+        }
+
+        return result
     }
 
     func contextOfTryCastAs(

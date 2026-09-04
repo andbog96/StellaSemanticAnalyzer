@@ -1,15 +1,21 @@
-struct Name: Hashable {
-    var value: String
+struct ValueName: CustomStringConvertible, Hashable {
+    var description: String
 }
 
-extension Name: Comparable {
-    static func < (lhs: borrowing Name, rhs: borrowing Name) -> Bool {
-        lhs.value < rhs.value
-    }
+struct TypeName: CustomStringConvertible, Hashable {
+    var description: String
 }
 
-struct Label: Hashable {
-    var value: String
+struct TupleIndex {
+    var value: Int
+}
+
+struct RecordLabel: CustomStringConvertible, Hashable {
+    var description: String
+}
+
+struct VariantLabel: CustomStringConvertible, Hashable {
+    var description: String
 }
 
 struct Program {

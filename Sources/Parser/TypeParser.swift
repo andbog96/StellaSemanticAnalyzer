@@ -39,7 +39,7 @@ extension RawType: StaticParsable {
 
         // <| a, b : bool, c : int |>
         let variant = rule { // `a: int` field for variant
-            Label.self
+            VariantLabel.self
             rule { // optional `: int`
                 Sign.colon
                 typeParser
@@ -62,7 +62,7 @@ extension RawType: StaticParsable {
         }
         .map(reference) <?> "reference type"
 
-        Name.map(variable) <?> "type variable"
+        TypeName.map(variable) <?> "type variable"
     }
 
     // parsec provides tools for quickly parsing expressions
@@ -87,7 +87,7 @@ extension RawType: StaticParsable {
     static func forall(using typeParser: Parser<Self>) -> Parser<Self> {
         rule {
             Keyword.forall
-            Name.parser.commaSeparated
+            TypeName.parser.commaSeparated
             Sign.dot
             typeParser
         }

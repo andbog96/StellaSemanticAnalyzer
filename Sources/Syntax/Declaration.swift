@@ -1,8 +1,8 @@
 enum Declaration: Sendable {
     case function(
-        name: Name,
-        typeVariables: [Name],
-        parameters: [(name: Name, rawType: RawType)],
+        name: ValueName,
+        typeVariables: [TypeName],
+        parameters: [(name: ValueName, rawType: RawType)],
         returnType: RawType?,
         throwTypes: [RawType],
         declarations: [Declaration],
@@ -10,13 +10,13 @@ enum Declaration: Sendable {
     )
     
     case exceptionType(RawType)
-    case exceptionVariant(Label, RawType)
+    case exceptionVariant(VariantLabel, RawType)
 }
 
 extension Declaration {
     static func lambda(
-        typeVariables: [Name] = [],
-        parameters: [(name: Name, rawType: RawType)] = [],
+        typeVariables: [TypeName] = [],
+        parameters: [(name: ValueName, rawType: RawType)] = [],
         returnExpression: Expression
     ) -> Self {
         .function(
@@ -31,7 +31,7 @@ extension Declaration {
     }
 
     static func forall(
-        typeVariables: [Name],
+        typeVariables: [TypeName],
         returnType: RawType,
     ) -> Self {
         .function(

@@ -130,7 +130,7 @@ extension Context {
 
             if extensions.contains(.typeReconstruction),
                case .auto = tupleType,
-               1...2 ~= index {
+               index.isPairIndex {
                 let elements = [CanonicalType.auto(.new), .auto(.new)]
 
                 tupleType = try solver.unify(actual: tupleType, expected: .tuple(elements: elements))
@@ -141,7 +141,7 @@ extension Context {
                 throw .notATuple(actual: tupleType, in: copy expression)
             }
 
-            guard let type = elements[safe: index - 1] else {
+            guard let type = elements[safe: index.fromZero] else {
                 throw .tupleIndexOutOfBounds(index: index, type: tupleType, in: copy expression)
             }
 
@@ -150,11 +150,9 @@ extension Context {
         // MARK: - #records
         case .record(let fields):
             return try CanonicalType.record § Dictionary(
-                uniqueKeysWithValues: fields.lazy.map { label, value in
-                    (key: label, value: value)
-                },
-                rejectingDuplicateKeysWith: { duplicates in
-                    SemanticError.duplicateRecordFields(duplicates, in: copy expression)
+                uniqueKeysWithValues: fields,
+                rejectingDuplicateKeysWith: {
+                    SemanticError.duplicateRecordFields($0, in: copy expression)
                 }
             )
             .mapValues(infer)
@@ -178,9 +176,9 @@ extension Context {
                 .infer(inExpression)
 
         // MARK: - #letrec-bindings
-        case .letrec(let cases, let expression):
+        case .letrec(let cases, let inExpression):
             return try contextOfLetrec(cases: cases, in: expression)
-                .infer(expression)
+                .infer(inExpression)
 
         // MARK: - #type-ascriptions
         case .typeAscription(let value, let rawType):
@@ -335,10 +333,6 @@ extension Context {
                 )
             }
 
-            guard case .function = parameter else {
-                throw .notAFunction(actual: parameter, in: copy expression)
-            }
-
             return try constrain(parameter, to: result) <!> SemanticError.constrainError(in: expression)
 
         // MARK: - #sequencing
@@ -352,16 +346,16 @@ extension Context {
             throw .ambiguousReferenceType(in: copy expression)
 
         case .reference(let expression):
-            return try .reference(infer(expression))
+            return .reference(try infer(expression))
 
-        case .dereference(let referenceExpression):
-            let referenceType = try infer(referenceExpression)
+        case .dereference(let reference):
+            let referenceType = try infer(reference)
 
-            guard case .reference(let type) = referenceType else {
+            guard case .reference(let dereferencedType) = referenceType else {
                 throw .notAReference(actual: referenceType, in: copy expression)
             }
 
-            return type
+            return dereferencedType
 
         case .assign(let variable, let assingee):
             let referenceType = try infer(variable)

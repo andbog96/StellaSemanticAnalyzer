@@ -2,8 +2,8 @@ import Collections
 
 @MainActor
 struct Function {
-    var name: Name
-    var typeVariables: OrderedSet<Name>
+    var name: ValueName
+    var typeVariables: OrderedSet<TypeName>
     var parameters: Parameters
     var returnType: CanonicalType
     var nestedFunctions: Functions
@@ -11,8 +11,8 @@ struct Function {
 }
 
 extension Function {
-    typealias Parameters = OrderedDictionary<Name, CanonicalType>
-    
+    typealias Parameters = OrderedDictionary<ValueName, CanonicalType>
+
     init?(from declaration: consuming Declaration) throws(CanonizeError) {
         switch declaration {
         case .function(
@@ -56,7 +56,7 @@ extension Function {
     }
 }
 
-typealias Functions = [Name: Function]
+typealias Functions = [ValueName: Function]
 
 @MainActor
 extension Functions {

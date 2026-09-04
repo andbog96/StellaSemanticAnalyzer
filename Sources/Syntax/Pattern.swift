@@ -1,5 +1,5 @@
 enum Pattern: Sendable {
-    case `var`(Name)
+    case `var`(ValueName)
 
     case `false`
     case `true`
@@ -9,11 +9,11 @@ enum Pattern: Sendable {
 
     case unit
     case tuple(elements: [Pattern])
-    case record(fields: [(label: Label, pattern: Pattern)])
+    case record(fields: [(label: RecordLabel, pattern: Pattern)])
 
     indirect case inl(Pattern)
     indirect case inr(Pattern)
-    indirect case variant(Label, Pattern?)
+    indirect case variant(VariantLabel, Pattern?)
 
     case list([Pattern])
     indirect case cons(head: Pattern, tail: Pattern)

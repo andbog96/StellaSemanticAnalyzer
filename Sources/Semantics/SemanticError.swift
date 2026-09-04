@@ -4,7 +4,7 @@ enum SemanticError: Error {
     case undefined(code: String)
 
     case missingMain
-    case undefinedVariable(Name)
+    case undefinedVariable(ValueName)
 
     case notAFunction(actual: CanonicalType, in: Expression)
     case notATuple(actual: CanonicalType, in: Expression)
@@ -15,7 +15,7 @@ enum SemanticError: Error {
     case unexpectedParameterType(
         actual: CanonicalType,
         expected: CanonicalType,
-        name: Name,
+        name: ValueName,
         callee: CanonicalType,
         in: Expression
     )
@@ -25,12 +25,12 @@ enum SemanticError: Error {
     case unexpectedList(expected: CanonicalType, in: Expression)
     case unexpectedInjection(expected: CanonicalType, in: Expression)
 
-    case missingRecordFields([Label], for: CanonicalType, in: Expression)
-    case unexpectedRecordFields([Label], for: CanonicalType, in: Expression)
-    case unexpectedFieldAccess(Label, type: CanonicalType, in: Expression)
-    case unexpectedVariantLabels([Label], for: CanonicalType, in: Expression)
+    case missingRecordFields([RecordLabel], for: CanonicalType, in: Expression)
+    case unexpectedRecordFields([RecordLabel], for: CanonicalType, in: Expression)
+    case unexpectedFieldAccess(RecordLabel, type: CanonicalType, in: Expression)
+    case unexpectedVariantLabels([VariantLabel], for: CanonicalType, in: Expression)
 
-    case tupleIndexOutOfBounds(index: Int, type: CanonicalType, in: Expression)
+    case tupleIndexOutOfBounds(index: TupleIndex, type: CanonicalType, in: Expression)
     case unexpectedTupleLength(actual: Int, expected: Int, type: CanonicalType, in: Expression)
 
     case ambiguousSumType(in: Expression)
@@ -41,14 +41,14 @@ enum SemanticError: Error {
     case nonexhaustiveLetPatterns(for: Expression, missing: [Pattern])
     case nonexhaustiveMatchPatterns(for: Expression, missing: [Pattern])
 
-    case duplicateRecordFields([Label], in: Expression)
+    case duplicateRecordFields([RecordLabel], in: Expression)
 
     case incorrectMainArity(Int)
     case incorrectArgumentsNumber(actual: Int, expected: Int, type: CanonicalType, in: Expression)
     case unexpectedParametersNumber(actual: Int, expected: Int, type: CanonicalType, in: Expression)
 
-    case unexpectedData(for: Label, expected: CanonicalType, in: Expression)
-    case missingData(for: Label, type: CanonicalType, expected: CanonicalType, in: Expression)
+    case unexpectedData(for: VariantLabel, expected: CanonicalType, in: Expression)
+    case missingData(for: VariantLabel, type: CanonicalType, expected: CanonicalType, in: Expression)
 
     case unexpectedType(actual: CanonicalType, expected: CanonicalType, in: Expression)
 
@@ -63,12 +63,12 @@ enum SemanticError: Error {
     case unexpectedReference(expected: CanonicalType, in: Expression)
 
     case duplicateExceptionType
-    case duplicateExceptionVariant(Label)
+    case duplicateExceptionVariant(VariantLabel)
     case conflictingExceptionDeclarations
     case illegalLocalExceptionType
     case illegalLocalOpenVariantException
 
-    case undefinedTypeVariables([Name])
+    case undefinedTypeVariables([TypeName])
     case notAGenericFunction(actual: CanonicalType, in: Expression)
     case incorrectNumberOfTypeArguements(actual: Int, expected: Int, type: CanonicalType, in: Expression)
     case ambiguousType(in: Expression)
@@ -212,6 +212,7 @@ extension SemanticError {
         case .patternError(.duplicateRecordPatternFields, _): "ERROR_DUPLICATE_RECORD_PATTERN_FIELDS"
         case .patternError(.unexpectedNonNullaryVariantPattern, _): "ERROR_UNEXPECTED_NON_NULLARY_VARIANT_PATTERN"
         case .patternError(.unexpectedNullaryVariantPattern, _): "ERROR_UNEXPECTED_NULLARY_VARIANT_PATTERN"
+        case .patternError(.ambiguousPatternType, _): "ERROR_AMBIGUOUS_PATTERN_TYPE"
 
         case .patternError(.canonizeError(let error), _):
             Self.canonizeError(error).code
@@ -405,7 +406,7 @@ extension SemanticError {
             """
         case let .unexpectedVariantLabels(labels, expectedType, in: expression):
             """
-            Variant label: '\(labels.map(\.value).joined(separator: ", "))' wasn't expected 
+            Variant label: '\(labels.map(\.description).joined(separator: ", "))' wasn't expected 
             for a variant type: \(expectedType)
             In expression: \(expression)
             """
@@ -483,7 +484,7 @@ extension SemanticError {
             """
         case .undefinedTypeVariables(let names):
             """
-            undefined type variables \(names.lazy.map(\.value).joined(separator: ", "))
+            undefined type variables \(names.lazy.map(\.description).joined(separator: ", "))
             """
         case .unexpectedType(let actual, let expected, let expression):
             """
@@ -580,6 +581,13 @@ extension SemanticError {
             Pattern: \(pattern)
             provides a pattern to match for a label: '\(tag)', 
             but this tag must be null according to a matching type: \(type)
+            """
+        case .patternError(.ambiguousPatternType(let pattern), let expression):
+            """
+            cannot infer the type for pattern:
+            \(pattern)
+            in expression:
+            \(expression)
             """
         case .patternError(.canonizeError(let error), _):
             Self.canonizeError(error).message
