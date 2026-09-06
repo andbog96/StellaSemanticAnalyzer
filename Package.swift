@@ -16,9 +16,6 @@ let package = Package(
             dependencies: [
                 .product(name: "SwiftParsec", package: "SwiftParsec"),
                 .product(name: "Collections", package: "swift-collections")
-            ],
-            swiftSettings: [
-                .enableUpcomingFeature("FullTypedThrows")
             ]
         ),
         .testTarget(

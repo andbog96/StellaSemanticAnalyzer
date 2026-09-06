@@ -19,15 +19,3 @@ extension TupleIndex {
         value - 1
     }
 }
-
-//extension Label: ExpressibleByStringLiteral {
-//    init(stringLiteral value: StringLiteralType) {
-//        self.init(value: value)
-//    }
-//}
-//
-//extension MemoryAddress: ExpressibleByStringLiteral {
-//    init(stringLiteral value: StringLiteralType) {
-//        self.init(value: value)
-//    }
-//}

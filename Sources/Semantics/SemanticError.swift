@@ -546,8 +546,18 @@ extension SemanticError {
             """
 
         // MARK: - UnifyError
-        case .unifyError(.occursCheckInfiniteType, let expression):
-            "Occurs check failed: an inferred type would be infinite. In expression: \(expression)"
+        case .unifyError(.occursCheckInfiniteType(let actual, let expected), let expression):
+            """
+            Occurs check failed: an inferred type would be infinite.
+            Actual type:
+            \(actual)
+            
+            Expected type:
+            \(expected)
+            
+            In expression:
+            \(expression)
+            """
         case .unifyError(.unexpectedTupleLength(let actual, let expected, let type), let expression):
             Self.unexpectedTupleLength(actual: actual, expected: expected, type: type, in: expression).message
         case .unifyError(.unexpectedType(let actual, let expected), let expression):

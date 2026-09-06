@@ -73,10 +73,10 @@ extension CanonicalType {
         }
     }
 
-    func substituting(_ substitutions: [TypeName: CanonicalType]) -> Self {
+    consuming func substituting(_ substitutions: [TypeName: CanonicalType]) -> Self {
         switch self {
         case .variable(let name):
-            substitutions[name] ?? self
+            substitutions[name] ?? copy self
 
         case .forall(let variables, let body):
             .forall(
@@ -116,7 +116,7 @@ extension CanonicalType {
         }
     }
 
-    func freeVariables(except excluded: Set<TypeName>) -> Set<TypeName> {
+    borrowing func freeVariables(except excluded: Set<TypeName>) -> Set<TypeName> {
         switch self {
         case .variable(let name):
             excluded.contains(name) ? [] : [name]
@@ -163,11 +163,11 @@ extension CanonicalType {
         }
     }
 
-    init(from rawType: RawType) throws(CanonizeError) {
+    init(from rawType: borrowing RawType) throws(CanonizeError) {
         self = switch rawType {
         case .function(let from, let to):
             try .function(
-                from: from.map(CanonicalType.init(from:)),
+                from: from.map(Self.init(from:)),
                 to: Self(from: to)
             )
         
@@ -181,13 +181,13 @@ extension CanonicalType {
             .unit
         
         case .tuple(let elements):
-            try .tuple(elements: elements.map(CanonicalType.init(from:)))
-        
+            try .tuple(elements: elements.map(Self.init(from:)))
+
         case .record(let fields):
             try Self.record(fields:) § Dictionary(
                 uniqueKeysWithValues: fields,
                 rejectingDuplicateKeysWith: {
-                    CanonizeError.duplicateRecordTypeFields($0, in: rawType)
+                    CanonizeError.duplicateRecordTypeFields($0, in: copy rawType)
                 }
             )
             .mapValues(Self.init(from:))
@@ -202,7 +202,7 @@ extension CanonicalType {
             try Self.variant(cases:) § Dictionary(
                 uniqueKeysWithValues: cases,
                 rejectingDuplicateKeysWith: {
-                    CanonizeError.duplicateVariantTypeFields($0, in: rawType)
+                    CanonizeError.duplicateVariantTypeFields($0, in: copy rawType)
                 }
             )
             .mapValues { rawType throws(CanonizeError) in
