@@ -6,6 +6,12 @@ extension Context {
         against expectedType: borrowing CanonicalType
     ) throws(SemanticError) {
         switch (expression, copy expectedType) {
+        // MARK: - auto
+        case (_, .auto):
+            let actualType = try infer(expression)
+
+            try solver.unify(actual: actualType, expected: expectedType) <!> SemanticError.unifyError(in: expression)
+
         // MARK: - STLC
         case (
             .abstraction(let actualParameters, let actualReturnExpression),
@@ -124,8 +130,6 @@ extension Context {
             for (label, actualValue) in actualFields {
                 if let expectedType = expectedFields[label] {
                     try check(actualValue, against: expectedType)
-                } else {
-                    assertionFailure()
                 }
             }
 

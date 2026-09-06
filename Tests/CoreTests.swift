@@ -170,8 +170,8 @@ language core;
 extend with #records;
 
 fn main(n : Nat) -> Nat {
-  return if { num = 0, bool = false, num = true }.bool 
-    then succ(0) 
+  return if { num = 0, bool = false, num = true }.bool
+    then succ(0)
     else 0
 }
 """#
@@ -1437,12 +1437,12 @@ fn main(n : &{ a : Nat, b : Bool }) -> { a : Nat } {
         let source = #"""
 language core;
 
-// a constant function, specialized to Nat
+
 fn Nat2Nat::const(f : fn(Nat) -> Nat) -> (fn(Nat) -> (fn(Nat) -> Nat)) {
   return fn(x : Nat) { return f }
 }
 
-// addition of natural numbers
+
 fn Nat::add(n : Nat) -> (fn(Nat) -> Nat) {
   return fn(m : Nat) {
     return Nat::rec(n, m, fn(i : Nat) {
@@ -1450,18 +1450,18 @@ fn Nat::add(n : Nat) -> (fn(Nat) -> Nat) {
   }
 }
 
-// multiplication of natural numbers
+
 fn Nat::mul(n : Nat) -> (fn(Nat) -> Nat) {
   return fn(m : Nat) {
     return Nat::rec(n, 0, Nat2Nat::const(Nat::add(m)))
   }
 }
 
-// factorial via primitive recursion
+
 fn factorial(n : Nat) -> Nat {
   return Nat::rec(n, succ(0), fn(i : Nat) {
     return fn(r : Nat) {
-    return Nat::mul(r)(succ(i))  // r := r * (i + 1)
+    return Nat::mul(r)(succ(i))
   } })
 }
 
@@ -1722,26 +1722,26 @@ fn main(default : Nat) -> Nat {
         let source = #"""
 language core;
 
-// logical operator not
+
 fn Bool::not(b : Bool) -> Bool {
   return if b then false else true
 }
 
-// logical operator or
+
 fn Bool::or(a : Bool) -> (fn(Bool) -> Bool) {
   return fn(b : Bool) {
     return if a then true else b
   }
 }
 
-// logical operator and
+
 fn Bool::and(a : Bool) -> (fn(Bool)->Bool) {
   return fn(b : Bool) {
     return if a then b else false
   }
 }
 
-// logical operator xor
+
 fn Bool::xor(a : Bool) -> (fn(Bool)->Bool) {
   return fn(b : Bool) {
     return
@@ -1752,10 +1752,10 @@ fn Bool::xor(a : Bool) -> (fn(Bool)->Bool) {
 
 fn main(n : Bool) -> Bool {
   return Bool::xor
-    (Bool::and  // always false
+    (Bool::and
       (n)
       (Bool::not(n)))
-    (Bool::or   // always true
+    (Bool::or
       (Bool::not(n))
       (n))
 }
@@ -1777,33 +1777,33 @@ fn main(n : Bool) -> Bool {
         let source = #"""
 language core;
 
-// a constant function, specialized to Nat
+
 fn Nat2Nat::const(f : fn(Nat) -> Nat) -> (fn(Nat) -> (fn(Nat) -> Nat)) {
   return fn(x : Nat) { return f }
 }
 
-// addition of natural numbers
+
 fn Nat::add(n : Nat) -> fn(Nat) -> Nat {
   return fn(m : Nat) {
     return Nat::rec(n, m, fn(i : Nat) {
       return fn(r : Nat) {
-        return succ( r ) // r := r + 1
+        return succ( r )
       }
     })
   }
 }
 
-// square, computed as a sum of odd numbers
+
 fn square(n : Nat) -> Nat {
   return Nat::rec(n, 0, fn(i : Nat) {
       return fn(r : Nat) {
-        // r := r + (2*i + 1)
+
         return Nat::add(i)( Nat::add(i)( succ(r) ))
       }
   })
 }
 
-// multiplication of natural numbers
+
 fn Nat::mul(n : Nat) -> (fn(Nat) -> Nat) {
   return fn(m : Nat) {
     return Nat::rec(n, 0, Nat2Nat::const(Nat::add(m)))
@@ -1813,7 +1813,7 @@ fn Nat::mul(n : Nat) -> (fn(Nat) -> Nat) {
 fn cube(n : Nat) -> Nat {
   return Nat::rec(n, 0, fn(i : Nat) {
       return fn(r : Nat) {
-        // r := r + (3r^2 + 3r + 1)
+
         return Nat::add(i)( Nat::add(Nat::mul(square(i))(succ(succ(succ(0))))) ( Nat::add(i) ( Nat::add(i) ( succ(r) ) ) ))
       }
   })
@@ -2018,22 +2018,22 @@ fn main(n : Nat) -> Nat {
         let source = #"""
 language core;
 
-// addition of natural numbers
+
 fn Nat::add(n : Nat) -> fn(Nat) -> Nat {
   return fn(m : Nat) {
     return Nat::rec(n, m, fn(i : Nat) {
       return fn(r : Nat) {
-        return succ( r ) // r := r + 1
+        return succ( r )
       }
     })
   }
 }
 
-// square, computed as a sum of odd numbers
+
 fn square(n : Nat) -> Nat {
   return Nat::rec(n, 0, fn(i : Nat) {
       return fn(r : Nat) {
-        // r := r + (2*i + 1)
+
         return Nat::add(i)( Nat::add(i)( succ( r )))
       }
   })

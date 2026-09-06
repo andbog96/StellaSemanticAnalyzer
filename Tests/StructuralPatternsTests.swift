@@ -244,14 +244,14 @@ fn main(input : Nat) -> Nat {
  return
    match input {
      0 => 0
-     | succ(succ(succ(succ(succ(succ(n)))))) => 0 //6+
+     | succ(succ(succ(succ(succ(succ(n)))))) => 0
      | 4 => 0
      | 2 => 0
      | 5 => 0
      | 7 => 0
      | 6 => 0
-     | succ(succ(succ(0))) => 0  //3
-     | succ(0) => 0              //1
+     | succ(succ(succ(0))) => 0
+     | succ(0) => 0
      | 9 => 0
      | 8 => 0
      | 10 => 0

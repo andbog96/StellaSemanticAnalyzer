@@ -20,7 +20,7 @@ let package = Package(
         ),
         .testTarget(
             name: "StellaSemanticAnalyzerTests",
-            dependencies: [.target(name: "StellaSemanticAnalyzer")],
+            dependencies: [.target(name: "StellaSemanticAnalyzer")]
         )
     ]
 )
