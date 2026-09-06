@@ -149,13 +149,13 @@ extension Context {
 
         // MARK: - #records
         case .record(let fields):
-            return try CanonicalType.record § Dictionary(
+            return try CanonicalType.record § OrderedDictionary(
                 uniqueKeysWithValues: fields,
                 rejectingDuplicateKeysWith: {
                     SemanticError.duplicateRecordFields($0, in: copy expression)
                 }
             )
-            .mapValues(infer)
+            .mapValues(try: infer)
 
         case .dotRecord(let record, let label):
             let recordType = try infer(record)

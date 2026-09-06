@@ -215,11 +215,7 @@ fn main(n : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test

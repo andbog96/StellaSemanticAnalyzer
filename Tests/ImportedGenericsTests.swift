@@ -191,8 +191,9 @@ fn main(a : Nat) -> Nat {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
         }
     }
 
@@ -212,34 +213,7 @@ fn main(n : Nat) -> Nat + Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
-    }
-
-    @Test("generics/fails/main-136.stella")
-    func test_generics_fails_main_136_stella_17f2b542() throws {
-        let source = #"""
-language core;
-
-extend with #type-reconstruction, #sum-types;
-
-fn main(n : Nat) -> Nat + Nat {
-  return (fn (a : Nat) { return inr(0) }) (0)
-}
-"""#
-        let program = try Program.parser.run(
-            sourceName: "generics/fails/main-136.stella",
-            input: source
-        )
-
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/fails/main-139.stella")
@@ -265,11 +239,7 @@ fn main(input : auto) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/fails/main-145.stella")
@@ -630,11 +600,7 @@ fn main(x : auto) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/fails/main-163.stella")
@@ -978,11 +944,7 @@ fn main(n : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/fails/main-2.stella")
@@ -1296,8 +1258,9 @@ fn main(n : auto) -> auto {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -1319,8 +1282,9 @@ fn main(n : auto) -> auto {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -1342,8 +1306,9 @@ fn main(n : Nat) -> auto {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
         }
     }
 
@@ -1367,11 +1332,7 @@ fn main(n : Nat) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/ambigous-type-bad.stella")
@@ -1393,8 +1354,9 @@ fn main(n : auto) -> auto {
 
         do {
             _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 

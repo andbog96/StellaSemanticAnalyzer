@@ -1,7 +1,9 @@
+import Collections
+
 @MainActor
 enum Exception {
     case type(CanonicalType)
-    case variant([VariantLabel: CanonicalType])
+    case variant(OrderedDictionary<VariantLabel, CanonicalType>)
 }
 
 extension Exception {
@@ -65,7 +67,7 @@ extension CanonicalType {
             type
 
         case .variant(let cases):
-             .variant(cases: cases)
+            .variant(cases: cases.mapValues(identity))
         }
     }
 }

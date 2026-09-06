@@ -9,10 +9,10 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case unit
 
     case tuple(elements: [Self])
-    case record(fields: [RecordLabel: Self])
+    case record(fields: OrderedDictionary<RecordLabel, Self>)
 
     indirect case sum(left: Self, right: Self)
-    case variant(cases: [VariantLabel: Self?])
+    case variant(cases: OrderedDictionary<VariantLabel, Self?>)
 
     indirect case list(Self)
 
@@ -184,14 +184,14 @@ extension CanonicalType {
             try .tuple(elements: elements.map(Self.init(from:)))
 
         case .record(let fields):
-            try Self.record(fields:) § Dictionary(
+            try Self.record(fields:) § OrderedDictionary(
                 uniqueKeysWithValues: fields,
                 rejectingDuplicateKeysWith: {
                     CanonizeError.duplicateRecordTypeFields($0, in: copy rawType)
                 }
             )
-            .mapValues(Self.init(from:))
-        
+            .mapValues(try: Self.init(from:))
+
         case .sum(let left, let right):
             try .sum(
                 left: Self(from: left),
@@ -199,15 +199,15 @@ extension CanonicalType {
             )
         
         case .variant(let cases):
-            try Self.variant(cases:) § Dictionary(
+            try Self.variant(cases:) § OrderedDictionary(
                 uniqueKeysWithValues: cases,
                 rejectingDuplicateKeysWith: {
                     CanonizeError.duplicateVariantTypeFields($0, in: copy rawType)
                 }
             )
-            .mapValues { rawType throws(CanonizeError) in
+            .mapValues(try: { rawType throws(CanonizeError) in
                 try rawType.map(Self.init(from:))
-            }
+            })
         
         case .list(let type):
             try .list(Self(from: type))

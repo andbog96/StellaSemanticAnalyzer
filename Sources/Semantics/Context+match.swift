@@ -1,3 +1,5 @@
+import Collections
+
 extension Context {
     @MainActor
     func match(
@@ -124,6 +126,65 @@ extension Context {
         }
     }
 
+    func inferredType(
+        from pattern: borrowing Pattern
+    ) throws(PatternError) -> CanonicalType? {
+        func inferredOrAuto(from pattern: borrowing Pattern) throws(PatternError) -> CanonicalType {
+            try inferredType(from: pattern) ?? .auto(.new)
+        }
+
+        return switch pattern {
+        case .var:
+            nil
+
+        case .false,
+             .true:
+            .bool
+
+        case .zero,
+             .succ:
+            .nat
+
+        case .unit:
+            .unit
+
+        case .tuple(let patterns):
+            .tuple(elements: try patterns.map(inferredOrAuto(from:)))
+
+        case .record(let fields):
+            try CanonicalType.record(fields:) § OrderedDictionary(
+                uniqueKeysWithValues: fields,
+                rejectingDuplicateKeysWith: {
+                    PatternError.duplicateRecordPatternFields($0, in: copy pattern)
+                }
+            )
+            .mapValues(try: inferredOrAuto(from:))
+
+        case .inl(let payload):
+            .sum(
+                left: try inferredOrAuto(from: payload),
+                right: .auto(.new)
+            )
+
+        case .inr(let payload):
+            .sum(
+                left: .auto(.new),
+                right: try inferredOrAuto(from: payload)
+            )
+
+        case .variant:
+            nil
+
+        case .list,
+             .cons:
+            .list(.auto(.new))
+
+        case .ascription(_, let rawType),
+             .cast(_, let rawType):
+            try CanonicalType(from: rawType) <!> PatternError.canonizeError
+        }
+    }
+
     func annotatedType(
         of pattern: borrowing Pattern
     ) throws(PatternError) -> CanonicalType {
@@ -136,13 +197,13 @@ extension Context {
             .tuple(elements: try patterns.map(annotatedType(of:)))
 
         case .record(let fields):
-            try CanonicalType.record(fields:) § Dictionary(
+            try CanonicalType.record(fields:) § OrderedDictionary(
                 uniqueKeysWithValues: fields,
                 rejectingDuplicateKeysWith: {
                     PatternError.duplicateRecordPatternFields($0, in: copy pattern)
                 }
             )
-            .mapValues(annotatedType(of:))
+            .mapValues(try: annotatedType(of:))
 
         case .false,
              .true:

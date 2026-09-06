@@ -5,8 +5,13 @@ extension Collection {
         indices.contains(index) ? self[index] : nil
     }
 }
-
 extension Sequence {
+    func sorted<T: Comparable>(by keyPath: KeyPath<Element, T>) -> [Element] {
+        sorted { a, b in
+            a[keyPath: keyPath] < b[keyPath: keyPath]
+        }
+    }
+
     func compactMap<T, E: Error>(
         _ transform: (Element) throws(E) -> T?
     ) throws(E) -> [T] {
@@ -19,6 +24,14 @@ extension Sequence {
         }
         
         return result
+    }
+
+    func forEach<E: Error>(
+        _ body: (Element) throws(E) -> Void
+    ) throws(E) {
+        for element in self {
+            try body(element)
+        }
     }
 
     func reduce<T, E: Error>(
@@ -79,7 +92,31 @@ extension Dictionary {
         uniqueKeysWithValues keysAndValues: some Sequence<(Key, Value)>,
         rejectingDuplicateKeysWith duplicateKeysError: (_ duplicates: [Key]) -> E
     ) throws(E) {
-        self = [Key: Value](minimumCapacity: keysAndValues.underestimatedCount)
+        self = Self(minimumCapacity: keysAndValues.underestimatedCount)
+
+        let isDuplicate = { key, value in
+            updateValue(value, forKey: key) != nil
+        }
+
+        let duplicates = Array.init § withoutActuallyEscaping(isDuplicate) { isDuplicate in
+            keysAndValues
+                .lazy
+                .filter(isDuplicate)
+                .map(\.0)
+        }
+
+        guard duplicates.isEmpty else {
+            throw duplicateKeysError(duplicates)
+        }
+    }
+}
+
+extension OrderedDictionary {
+    init<E: Error>(
+        uniqueKeysWithValues keysAndValues: some Sequence<(Key, Value)>,
+        rejectingDuplicateKeysWith duplicateKeysError: (_ duplicates: [Key]) -> E
+    ) throws(E) {
+        self = Self(minimumCapacity: keysAndValues.underestimatedCount)
 
         let isDuplicate = { key, value in
             updateValue(value, forKey: key) != nil
@@ -94,6 +131,15 @@ extension Dictionary {
 
         guard duplicates.isEmpty else {
             throw duplicateKeysError(duplicates)
+        }
+    }
+
+    func mapValues<T, E: Error>(
+      try transform: (Value) throws(E) -> T
+    ) throws(E) -> OrderedDictionary<Key, T> {
+        try OrderedDictionary<Key, T>.init(uncheckedUniqueKeysWithValues:)
+        § map { key, value throws(E) in
+            (key, try transform(value))
         }
     }
 }

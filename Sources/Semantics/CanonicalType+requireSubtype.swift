@@ -1,5 +1,5 @@
 extension CanonicalType {
-    borrowing func requireSubtype(of supertype: borrowing CanonicalType) throws(SubtypeError) {
+    /*borrowing*/ func requireSubtype(of supertype: /*borrowing*/ CanonicalType) throws(SubtypeError) {
         guard self != supertype else {
             return
         }
@@ -100,7 +100,8 @@ extension CanonicalType {
             try subtypeElement.requireSubtype(of: supertypeElement)
 
         case (.reference(let subtypeValue), .reference(let supertypeValue))
-        where subtypeValue == supertypeValue:
+            where (try? subtypeValue.requireSubtype(of: supertypeValue)) != nil
+               && (try? supertypeValue.requireSubtype(of: subtypeValue)) != nil:
             break
 
         case (

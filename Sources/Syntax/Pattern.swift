@@ -21,3 +21,13 @@ enum Pattern: Sendable {
     indirect case cast(Pattern, as: RawType)
     indirect case ascription(Pattern, as: RawType)
 }
+
+extension Pattern {
+    var isVariable: Bool {
+        if case .var = self {
+            true
+        } else {
+            false
+        }
+    }
+}

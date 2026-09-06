@@ -1,3 +1,5 @@
+import Collections
+
 extension Solver {
     mutating func unify(_ types: NonEmpty<[CanonicalType]>) throws(UnifyError) -> CanonicalType {
         try types.fold { result, next throws(UnifyError) in
@@ -77,7 +79,7 @@ extension Solver {
             .record(let expectedFields)
         ) where actualFields.keys == expectedFields.keys:
             return try CanonicalType.record(fields:)
-            § Dictionary.init(uniqueKeysWithValues:)
+            § OrderedDictionary.init(uniqueKeysWithValues:)
             § actualFields.map { key, actualField throws(UnifyError) in
                 guard let expectedField = expectedFields[key] else {
                     assertionFailure()

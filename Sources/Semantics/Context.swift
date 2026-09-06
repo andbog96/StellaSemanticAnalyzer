@@ -2,7 +2,7 @@
 struct Context {
     let extensions: Set<Extension>
     let exceptionType: CanonicalType?
-    var data: ValueData
+    var data = nil as ValueData
 
     @MutableBox
     var solver = Solver()
@@ -13,7 +13,7 @@ struct Context {
         exceptionType = try Exception(from: program.declarations).map(CanonicalType.init)
 
         let functions = try Functions(from: program.declarations) <!> SemanticError.canonizeError
-        data = ValueData(functions)
+        try check(functions)
 
         guard case .function(let mainParameters, _) = try? data["main"] else {
             throw .missingMain
@@ -24,11 +24,30 @@ struct Context {
         }
 
         for function in functions.values {
-            try check(function)
+            let resolvedType = solver.resolve(.function(function))
+
+            guard !resolvedType.containsAutoType else {
+                throw .ambiguousType(in: function.returnExpression)
+            }
         }
     }
 
-    private func check(_ function: consuming Function) throws(SemanticError) {
+    private mutating func check(_ functions: Functions) throws(SemanticError) {
+        data.shadow(by: functions)
+
+        let localContexts = try functions.values
+            .sorted(by: \.name.description)
+            .map { function throws(SemanticError) in
+                (function: function, localContext: try localContext(of: function))
+            }
+
+        for (function, var localContext) in localContexts {
+            try localContext.check(function.nestedFunctions)
+            try localContext.check(function.returnExpression, against: function.returnType)
+        }
+    }
+
+    private func localContext(of function: borrowing Function) throws(SemanticError) -> Context {
         let declaredTypes = Array(function.parameters.values) + CollectionOfOne(function.returnType)
 
         let bound = Set(function.typeVariables)
@@ -37,10 +56,8 @@ struct Context {
             .map { $0.freeVariables(except: bound) }
             .reduce([], Set.union)
 
-        if extensions.contains(.universalTypes) {
-            guard undefinedVariables.isEmpty else {
-                throw .undefinedTypeVariables(undefinedVariables)
-            }
+        guard undefinedVariables.isEmpty else {
+            throw .undefinedTypeVariables(undefinedVariables)
         }
 
         var localContext = self
@@ -48,10 +65,6 @@ struct Context {
         localContext.data.shadow(by: function.parameters)
         localContext.data.shadow(by: function.nestedFunctions)
 
-        for localFunction in function.nestedFunctions.values {
-            try localContext.check(localFunction)
-        }
-
-        try localContext.check(function.returnExpression, against: function.returnType)
+        return localContext
     }
 }

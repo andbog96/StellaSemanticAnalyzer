@@ -6,12 +6,6 @@ extension Context {
         against expectedType: borrowing CanonicalType
     ) throws(SemanticError) {
         switch (expression, copy expectedType) {
-        // MARK: - auto
-        case (_, .auto):
-            let actualType = try infer(expression)
-
-            try solver.unify(actual: actualType, expected: expectedType) <!> SemanticError.unifyError(in: expression)
-
         // MARK: - STLC
         case (
             .abstraction(let actualParameters, let actualReturnExpression),
@@ -28,7 +22,7 @@ extension Context {
 
             for ((actualParameterName, actualParameterType), expectedParameterType) in zip(actualParameters, expectedParameterTypes) {
                 do {
-                    try constrain(actualParameterType, to: expectedParameterType)
+                    try constrain(expectedParameterType, to: actualParameterType)
                         <!> SemanticError.constrainError(in: expression)
                 } catch SemanticError.unexpectedType {
                     throw SemanticError.unexpectedParameterType(
@@ -57,7 +51,7 @@ extension Context {
                 in: expression
             )
 
-        case (.abstraction, _):
+        case (.abstraction, _) where !extensions.contains(.typeReconstruction):
             throw .unexpectedLambda(expected: copy expectedType, in: expression)
 
         // MARK: - Bool
@@ -87,7 +81,7 @@ extension Context {
         case (
             .tuple(let actualElements),
             .tuple(let expectedElements)
-        ):
+        ) where !extensions.contains(.typeReconstruction):
             throw .unexpectedTupleLength(
                 actual: actualElements.count,
                 expected: expectedElements.count,
@@ -95,7 +89,7 @@ extension Context {
                 in: expression
             )
 
-        case (.tuple, _):
+        case (.tuple, _) where !extensions.contains(.typeReconstruction):
             throw .unexpectedTuple(expected: copy expectedType, in: expression)
 
         // MARK: - #records
@@ -151,8 +145,8 @@ extension Context {
              (.inr(let value), .sum(_, let sumType)):
             try check(value, against: sumType)
 
-        case (.inl, _),
-             (.inr, _):
+        case (.inl, _) where !extensions.contains(.typeReconstruction),
+             (.inr, _) where !extensions.contains(.typeReconstruction):
             throw .unexpectedInjection(expected: copy expectedType, in: expression)
 
         // MARK: - #variants
@@ -198,14 +192,14 @@ extension Context {
                 try check(element, against: elementsType)
             }
 
-        case (.list, _):
+        case (.list, _) where !extensions.contains(.typeReconstruction) && expectedType != .top:
             throw .unexpectedList(expected: copy expectedType, in: expression)
 
         case (.cons(let head, let tail), .list(let elementType)):
             try check(head, against: elementType)
             try check(tail, against: expectedType)
 
-        case (.cons, _):
+        case (.cons, _) where !extensions.contains(.typeReconstruction) && expectedType != .top:
             throw .unexpectedList(expected: copy expectedType, in: expression)
 
         case (.head(let list), _):
@@ -227,7 +221,8 @@ extension Context {
             try check(second, against: expectedType)
 
         // MARK: - #references
-        case (.constMemory, .reference):
+        case (.constMemory, .top),
+             (.constMemory, .reference):
             break
 
         case (.constMemory, _):
@@ -236,7 +231,7 @@ extension Context {
         case (.reference(let value), .reference(let valueType)):
             try check(value, against: valueType)
 
-        case (.reference, _):
+        case (.reference, _) where expectedType != .top:
             throw .unexpectedReference(expected: copy expectedType, in: expression)
 
         case (.dereference(let reference), _):
@@ -365,10 +360,40 @@ extension Context {
             throw .illegalEmptyMatch(in: copy expression)
         }
 
-        let matchedType = solver.resolve(try infer(value))
+        var matchedType = solver.resolve(try infer(value))
 
-        guard !matchedType.containsAutoType else {
-            throw .ambiguousType(in: copy expression)
+        if matchedType.containsAutoType {
+            let inferredPatternTypes = try cases
+                .map(\.pattern)
+                .compactMap(inferredType(from:))
+                <!> SemanticError.patternError(in: expression)
+
+            if let inferredPatternTypes = NonEmpty(rawValue: inferredPatternTypes) {
+                let inferredPatternType = try solver.unify(inferredPatternTypes)
+                    <!> SemanticError.unifyError(in: expression)
+
+                matchedType = try solver.unify(
+                    actual: matchedType,
+                    expected: inferredPatternType
+                ) <!> SemanticError.unifyError(in: expression)
+                matchedType = solver.resolve(matchedType)
+            }
+        }
+
+        if matchedType.containsAutoType {
+            switch matchedType {
+            case .sum,
+                 .tuple,
+                 .record,
+                 .list:
+                break
+
+            case .auto where cases.allSatisfy(\.pattern.isVariable):
+                break
+
+            default:
+                throw .ambiguousType(in: copy expression)
+            }
         }
 
         let result = try cases.map { pattern, value throws(SemanticError) in

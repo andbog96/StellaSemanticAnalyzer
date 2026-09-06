@@ -1486,7 +1486,7 @@ fn main(n : Nat) -> Nat {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_NOT_A_REFERENCE")
+            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
         }
     }
 
@@ -3213,7 +3213,7 @@ fn main(f : Nat) -> { Nat, auto } {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_FUNCTION")
         }
     }
 
@@ -3237,7 +3237,7 @@ fn main(n : Nat) -> Nat {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_FUNCTION")
         }
     }
 
@@ -4158,7 +4158,7 @@ fn main(arg : Nat) -> auto {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_LIST")
         }
     }
 
@@ -4316,7 +4316,7 @@ fn main(n : Nat) -> Nat {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_FUNCTION")
         }
     }
 
@@ -4472,7 +4472,7 @@ fn main(arg : Nat) -> auto {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_LIST")
         }
     }
 
@@ -5366,7 +5366,7 @@ fn main(arg : Nat) -> auto {
             _ = try Context(from: program)
             Issue.record("Expected the program to be rejected")
         } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+            #expect(error.code == "ERROR_NOT_A_LIST")
         }
     }
 

@@ -676,7 +676,7 @@ fn main(f : fn(auto) -> auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -722,7 +722,7 @@ fn main(n : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -855,7 +855,7 @@ fn main(n : Nat) -> [Nat] {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -909,7 +909,7 @@ fn main(n : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -1098,8 +1098,9 @@ fn main(n : auto) -> auto {
 
         do {
             _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            Issue.record("Expected error")
+        } catch let error {
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -1193,7 +1194,7 @@ fn main(n : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -1511,7 +1512,7 @@ fn main(arg : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -2016,7 +2017,7 @@ fn main(n : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
@@ -3264,7 +3265,7 @@ fn main(input : auto) -> auto {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_AMBIGUOUS_TYPE")
         }
     }
 
