@@ -304,19 +304,15 @@ extension Context {
         for (pattern, value) in cases {
             var valueType = localContext.solver.resolve(try localContext.infer(value))
             if valueType.containsAutoType {
-                let inferredPatternTypes = try cases
-                    .map(\.pattern)
-                    .compactMap(inferredType(from:))
+                let inferredPatternType = try inferredType(from: pattern)
                     <!> SemanticError.patternError(in: expression)
 
-                if let inferredPatternTypes = NonEmpty(rawValue: inferredPatternTypes) {
-                    let inferredPatternType = try solver.unify(inferredPatternTypes)
-                        <!> SemanticError.unifyError(in: expression)
-
+                if let inferredPatternType {
                     valueType = try solver.unify(
                         actual: valueType,
                         expected: inferredPatternType
                     ) <!> SemanticError.unifyError(in: expression)
+
                     valueType = solver.resolve(valueType)
                 }
             }
