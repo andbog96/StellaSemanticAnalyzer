@@ -31,17 +31,12 @@ extension Solver {
             return type
 
         case (
-            .forall(let actualVariables, let actualBody),
-            .forall(let expectedVariables, let expectedBody)
-        ) where actualVariables.count == expectedVariables.count:
-            let renaming = Dictionary.init(uniqueKeysWithValues:) § zip(
-                actualVariables,
-                expectedVariables.map(CanonicalType.variable)
-            )
-
+            .forall(let actualVariableCount, let actualBody),
+            .forall(let expectedVariableCount, let expectedBody)
+        ) where actualVariableCount == expectedVariableCount:
             return .forall(
-                variables: expectedVariables,
-                body: try unify(actual: actualBody.substituting(renaming), expected: expectedBody)
+                variableCount: expectedVariableCount,
+                body: try unify(actual: actualBody, expected: expectedBody)
             )
 
         case (

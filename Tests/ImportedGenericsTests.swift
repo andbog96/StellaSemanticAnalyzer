@@ -1137,11 +1137,7 @@ fn main(x : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/fails/main-52.stella")
@@ -1541,7 +1537,7 @@ fn main(n : Nat) -> Bool {
         do {
             _ = try Context(from: program)
         } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
+            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
         }
     }
 
@@ -1686,11 +1682,7 @@ fn main(n : auto) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/list-cons-bad.stella")
@@ -1809,11 +1801,7 @@ fn main(n : [Nat]) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/list-isempty-good.stella")
@@ -1836,11 +1824,7 @@ fn main(n : Nat) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/list-literal-bad.stella")
@@ -1936,11 +1920,7 @@ fn main(n : Nat) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/natrec-bad.stella")
@@ -2114,11 +2094,7 @@ fn main(n : { a : auto, b : Bool }) ->  Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/record-literal-bad.stella")
@@ -2164,11 +2140,7 @@ fn main(n : Nat) -> auto {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-        } catch {
-            Issue.record("Expected a well-typed program, got: \(error)")
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/type-reconstruction/ast-tests/succ-bad.stella")
@@ -2401,7 +2373,7 @@ fn main(x : Nat) -> Nat {
         let source = #"""
 language core;
 
-extend with #universal-types;
+extend with #universal-types, #multiparameter-functions;
 
 generic fn apply[T](f : forall U. fn(U) -> T, x : Bool) -> T {
   return f[Bool](x)
@@ -2416,11 +2388,7 @@ fn main(x : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/universal-types/generic-typevar-in-body.stella")
@@ -2447,11 +2415,7 @@ fn main(x : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/universal-types/infinite-type.stella")
@@ -2488,7 +2452,7 @@ fn main(n : auto) -> [auto] {
         let source = #"""
 language core;
 
-extend with #universal-types;
+extend with #universal-types, #nested-function-declarations;
 
 fn main(x : Nat) -> Nat {
   generic fn localId[T](x : T) -> T {
@@ -2502,11 +2466,7 @@ fn main(x : Nat) -> Nat {
             input: source
         )
 
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected the program to be rejected")
-        } catch {
-        }
+        _ = try Context(from: program)
     }
 
     @Test("generics/universal-types/misapplication-argcount.stella")

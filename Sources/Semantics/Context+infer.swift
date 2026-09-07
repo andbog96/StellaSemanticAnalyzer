@@ -472,19 +472,19 @@ extension Context {
             localContext.typeVariables.formUnion(variables)
             let bodyType = try localContext.infer(body)
 
-            return .forall(variables: variables, body: bodyType)
+            return bodyType.abstracting(variables)
 
         case .typeApplication(let callee, let parameters):
             let calleeType = solver.resolve(try infer(callee))
-            guard case .forall(let variables, let body) = calleeType else {
+            guard case .forall(let variableCount, let body) = calleeType else {
                 throw .notAGenericFunction(actual: calleeType, in: copy expression)
             }
 
             let parameters = try parameters.map(CanonicalType.init(from:)) <!> SemanticError.canonizeError
-            guard variables.count == parameters.count else {
+            guard variableCount == parameters.count else {
                 throw .incorrectNumberOfTypeArguements(
                     actual: parameters.count,
-                    expected: variables.count,
+                    expected: variableCount,
                     type: calleeType,
                     in: copy expression
                 )
@@ -498,7 +498,7 @@ extension Context {
                 throw .undefinedTypeVariables(freeVariables)
             }
 
-            return body.substituting(Dictionary(uniqueKeysWithValues: zip(variables, parameters)))
+            return body.instantiating(parameters)
         }
     }
 }

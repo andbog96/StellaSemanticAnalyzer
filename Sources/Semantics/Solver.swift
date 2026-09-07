@@ -52,8 +52,8 @@ struct Solver {
         case .reference(let value):
             return .reference(resolve(value))
 
-        case .forall(let variables, let body):
-            return .forall(variables: variables, body: resolve(body))
+        case .forall(let variableCount, let body):
+            return .forall(variableCount: variableCount, body: resolve(body))
 
         default:
             return type

@@ -127,7 +127,7 @@ extension Context {
                 }
             }
 
-        case (.record, _):
+        case (.record, _) where !extensions.contains(.typeReconstruction):
             throw .unexpectedRecord(expected: copy expectedType, in: expression)
 
         // MARK: - #let-patterns
@@ -302,7 +302,41 @@ extension Context {
         var usedBindings = [] as Set<ValueName>
 
         for (pattern, value) in cases {
-            let valueType = localContext.solver.resolve(try localContext.infer(value))
+            var valueType = localContext.solver.resolve(try localContext.infer(value))
+            if valueType.containsAutoType {
+                let inferredPatternTypes = try cases
+                    .map(\.pattern)
+                    .compactMap(inferredType(from:))
+                    <!> SemanticError.patternError(in: expression)
+
+                if let inferredPatternTypes = NonEmpty(rawValue: inferredPatternTypes) {
+                    let inferredPatternType = try solver.unify(inferredPatternTypes)
+                        <!> SemanticError.unifyError(in: expression)
+
+                    valueType = try solver.unify(
+                        actual: valueType,
+                        expected: inferredPatternType
+                    ) <!> SemanticError.unifyError(in: expression)
+                    valueType = solver.resolve(valueType)
+                }
+            }
+
+            if valueType.containsAutoType {
+                switch valueType {
+                case .sum,
+                     .tuple,
+                     .record,
+                     .list:
+                    break
+
+                case .auto where cases.allSatisfy(\.pattern.isVariable):
+                    break
+
+                default:
+                    throw .ambiguousType(in: copy expression)
+                }
+            }
+
             let bindings = try match(pattern, against: valueType)
                 <!> SemanticError.patternError(in: expression)
 
@@ -316,10 +350,6 @@ extension Context {
 
             localContext.data.shadow(by: bindings)
             usedBindings.formUnion(bindings.names)
-
-            guard !valueType.containsAutoType else {
-                throw .ambiguousType(in: copy expression)
-            }
 
             do {
                 try valueType.checkExhaustiveness(of: single(pattern))

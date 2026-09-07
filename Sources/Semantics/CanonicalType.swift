@@ -22,8 +22,9 @@ enum CanonicalType: Sendable, Equatable, Hashable {
     case bottom
 
     case auto(TypeVariableID)
-    case variable(TypeName)
-    indirect case forall(variables: OrderedSet<TypeName>, body: Self)
+    case freeVariable(TypeName)
+    case boundVariable(Int)
+    indirect case forall(variableCount: Int, body: Self)
 }
 
 extension CanonicalType {
@@ -36,12 +37,121 @@ extension CanonicalType {
         return if function.typeVariables.isEmpty {
             body
         } else {
-            .forall(variables: function.typeVariables, body: body)
+            body.abstracting(function.typeVariables)
         }
     }
 }
 
 extension CanonicalType {
+    func abstracting(_ variables: OrderedSet<TypeName>) -> Self {
+        let body = mappingVariables(
+            free: { name, depth in
+                guard let position = variables.firstIndex(of: name) else {
+                    return .freeVariable(name)
+                }
+
+                return .boundVariable(depth + variables.count - position - 1)
+            },
+            bound: { index, _ in
+                .boundVariable(index)
+            }
+        )
+
+        return .forall(variableCount: variables.count, body: body)
+    }
+
+    func instantiating(_ arguments: [Self]) -> Self {
+        mappingVariables(
+            free: { name, _ in
+                .freeVariable(name)
+            },
+            bound: { index, depth in
+                let relativeIndex = index - depth
+
+                guard relativeIndex >= 0 else {
+                    return .boundVariable(index)
+                }
+
+                guard relativeIndex < arguments.count else {
+                    return .boundVariable(index - arguments.count)
+                }
+
+                return arguments[arguments.count - relativeIndex - 1].shiftingBoundVariables(by: depth)
+            }
+        )
+    }
+
+    private func shiftingBoundVariables(by offset: Int) -> Self {
+        guard offset != 0 else {
+            return self
+        }
+
+        return mappingVariables(
+            free: { name, _ in
+                .freeVariable(name)
+            },
+            bound: { index, depth in
+                .boundVariable(index >= depth ? index + offset : index)
+            }
+        )
+    }
+
+    private func mappingVariables(
+        depth: Int = 0,
+        free: (TypeName, Int) -> Self,
+        bound: (Int, Int) -> Self
+    ) -> Self {
+        switch self {
+        case .freeVariable(let name):
+            free(name, depth)
+
+        case .boundVariable(let index):
+            bound(index, depth)
+
+        case .forall(let variableCount, let body):
+            .forall(
+                variableCount: variableCount,
+                body: body.mappingVariables(
+                    depth: depth + variableCount,
+                    free: free,
+                    bound: bound
+                )
+            )
+
+        case .function(let from, let to):
+            .function(
+                from: from.map { $0.mappingVariables(depth: depth, free: free, bound: bound) },
+                to: to.mappingVariables(depth: depth, free: free, bound: bound)
+            )
+
+        case .tuple(let elements):
+            .tuple(elements: elements.map { $0.mappingVariables(depth: depth, free: free, bound: bound) })
+
+        case .record(let fields):
+            .record(fields: fields.mapValues { $0.mappingVariables(depth: depth, free: free, bound: bound) })
+
+        case .sum(let left, let right):
+            .sum(
+                left: left.mappingVariables(depth: depth, free: free, bound: bound),
+                right: right.mappingVariables(depth: depth, free: free, bound: bound)
+            )
+
+        case .variant(let cases):
+            Self.variant(cases:) § cases.mapValues {
+                $0.map { $0.mappingVariables(depth: depth, free: free, bound: bound) }
+            }
+
+        case .list(let element):
+            .list(element.mappingVariables(depth: depth, free: free, bound: bound))
+
+        case .reference(let element):
+            .reference(element.mappingVariables(depth: depth, free: free, bound: bound))
+
+        default:
+            self
+        }
+    }
+
     var containsAutoType: Bool {
         switch self {
         case .auto:
@@ -74,55 +184,23 @@ extension CanonicalType {
     }
 
     consuming func substituting(_ substitutions: [TypeName: CanonicalType]) -> Self {
-        switch self {
-        case .variable(let name):
-            substitutions[name] ?? copy self
-
-        case .forall(let variables, let body):
-            .forall(
-                variables: variables,
-                body: body.substituting(substitutions.filter(not • variables.contains • \.key))
-            )
-
-        case .function(let from, let to):
-            .function(
-                from: from.map { $0.substituting(substitutions) },
-                to: to.substituting(substitutions)
-            )
-
-        case .tuple(let elements):
-            .tuple(elements: elements.map { $0.substituting(substitutions) })
-
-        case .record(let fields):
-            .record(fields: fields.mapValues { $0.substituting(substitutions) })
-
-        case .sum(let left, let right):
-            .sum(
-                left: left.substituting(substitutions),
-                right: right.substituting(substitutions)
-            )
-
-        case .variant(let cases):
-            .variant(cases: cases.mapValues { $0.map { $0.substituting(substitutions) } })
-
-        case .list(let element):
-            .list(element.substituting(substitutions))
-
-        case .reference(let value):
-            .reference(value.substituting(substitutions))
-
-        default:
-            self
-        }
+        mappingVariables(
+            free: { name, depth in
+                substitutions[name]?.shiftingBoundVariables(by: depth) ?? .freeVariable(name)
+            },
+            bound: { index, _ in
+                .boundVariable(index)
+            }
+        )
     }
 
     borrowing func freeVariables(except excluded: Set<TypeName>) -> Set<TypeName> {
         switch self {
-        case .variable(let name):
+        case .freeVariable(let name):
             excluded.contains(name) ? [] : [name]
 
-        case .forall(let variables, let body):
-            body.freeVariables(except: excluded.union(variables))
+        case .forall(_, let body):
+            body.freeVariables(except: excluded)
 
         case .function(let from, let to):
             from
@@ -164,79 +242,97 @@ extension CanonicalType {
     }
 
     init(from rawType: borrowing RawType) throws(CanonizeError) {
-        self = switch rawType {
-        case .function(let from, let to):
-            try .function(
-                from: from.map(Self.init(from:)),
-                to: Self(from: to)
-            )
-        
-        case .bool:
-            .bool
-        
-        case .nat:
-            .nat
-        
-        case .unit:
-            .unit
-        
-        case .tuple(let elements):
-            try .tuple(elements: elements.map(Self.init(from:)))
+        self = try makeCanonicalType(from: rawType, environment: [])
 
-        case .record(let fields):
-            try Self.record(fields:) § OrderedDictionary(
-                uniqueKeysWithValues: fields,
-                rejectingDuplicateKeysWith: {
-                    CanonizeError.duplicateRecordTypeFields($0, in: copy rawType)
+        func makeCanonicalType(from rawType: borrowing RawType, environment: [TypeName]) throws(CanonizeError) -> Self {
+            switch rawType {
+            case .function(let from, let to):
+                try .function(
+                    from: from.map { rawType throws(CanonizeError) in
+                        try makeCanonicalType(from: rawType, environment: environment)
+                    },
+                    to: makeCanonicalType(from: to, environment: environment)
+                )
+
+            case .bool:
+                .bool
+
+            case .nat:
+                .nat
+
+            case .unit:
+                .unit
+
+            case .tuple(let elements):
+                try .tuple(elements: elements.map { rawType throws(CanonizeError) in
+                    try makeCanonicalType(from: rawType, environment: environment)
+                })
+
+            case .record(let fields):
+                try Self.record(fields:) § OrderedDictionary(
+                    uniqueKeysWithValues: fields,
+                    rejectingDuplicateKeysWith: {
+                        CanonizeError.duplicateRecordTypeFields($0, in: copy rawType)
+                    }
+                )
+                .mapValues(try: { rawType throws(CanonizeError) in
+                    try makeCanonicalType(from: rawType, environment: environment)
+                })
+
+            case .sum(let left, let right):
+                try .sum(
+                    left: makeCanonicalType(from: left, environment: environment),
+                    right: makeCanonicalType(from: right, environment: environment)
+                )
+
+            case .variant(let cases):
+                try Self.variant(cases:) § OrderedDictionary(
+                    uniqueKeysWithValues: cases,
+                    rejectingDuplicateKeysWith: {
+                        CanonizeError.duplicateVariantTypeFields($0, in: copy rawType)
+                    }
+                )
+                .mapValues(try: { rawType throws(CanonizeError) in
+                        try rawType.map { rawType throws(CanonizeError) in
+                            try makeCanonicalType(from: rawType, environment: environment)
+                        }
+                })
+
+            case .list(let type):
+                try .list(makeCanonicalType(from: type, environment: environment))
+
+            case .reference(let type):
+                try .reference(makeCanonicalType(from: type, environment: environment))
+
+            case .top:
+                .top
+
+            case .bottom:
+                .bottom
+
+            case .variable(let name):
+                if let position = environment.lastIndex(of: name) {
+                    .boundVariable(environment.count - position - 1)
+                } else {
+                    .freeVariable(name)
                 }
-            )
-            .mapValues(try: Self.init(from:))
 
-        case .sum(let left, let right):
-            try .sum(
-                left: Self(from: left),
-                right: Self(from: right)
-            )
-        
-        case .variant(let cases):
-            try Self.variant(cases:) § OrderedDictionary(
-                uniqueKeysWithValues: cases,
-                rejectingDuplicateKeysWith: {
-                    CanonizeError.duplicateVariantTypeFields($0, in: copy rawType)
-                }
-            )
-            .mapValues(try: { rawType throws(CanonizeError) in
-                try rawType.map(Self.init(from:))
-            })
-        
-        case .list(let type):
-            try .list(Self(from: type))
-        
-        case .reference(let type):
-            try .reference(Self(from: type))
-        
-        case .top:
-            .top
-        
-        case .bottom:
-            .bottom
-            
-        case .variable(let name):
-            .variable(name)
-        
-        case .auto:
-            .auto(.new)
+            case .auto:
+                .auto(.new)
 
-        case .forall(let variables, let type):
-            try .forall(
-                variables: try OrderedSet(
+            case .forall(let variables, let type):
+                try { variables throws(CanonizeError) in
+                    try .forall(
+                        variableCount: variables.count,
+                        body: makeCanonicalType(from: type, environment: environment + variables)
+                    )
+                } § OrderedSet(
                     variables,
                     rejectingDuplicatesWith: ParametersError.duplicateTypeParameter
                 ) <!> {
                     CanonizeError.parametersError($0, in: .forall(typeVariables: variables, returnType: type))
-                },
-                body: Self(from: type)
-            )
+                }
+            }
         }
     }
 }

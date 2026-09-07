@@ -105,14 +105,10 @@ extension CanonicalType {
             break
 
         case (
-            .forall(let subtypeVariables, let subtypeBody),
-            .forall(let supertypeVariables, let supertypeBody)
-        ) where subtypeVariables.count == supertypeVariables.count:
-            let renaming = Dictionary(uniqueKeysWithValues: zip(
-                subtypeVariables,
-                supertypeVariables.map(CanonicalType.variable)
-            ))
-            try subtypeBody.substituting(renaming).requireSubtype(of: supertypeBody)
+            .forall(let subtypeVariableCount, let subtypeBody),
+            .forall(let supertypeVariableCount, let supertypeBody)
+        ) where subtypeVariableCount == supertypeVariableCount:
+            try subtypeBody.requireSubtype(of: supertypeBody)
 
         default:
             throw .unexpectedSubtype(copy self, of: copy supertype)

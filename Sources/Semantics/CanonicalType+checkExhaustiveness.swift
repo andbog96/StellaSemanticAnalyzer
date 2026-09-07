@@ -61,7 +61,8 @@ extension CanonicalType {
 
         case .reference,
              .function,
-             .variable,
+             .freeVariable,
+             .boundVariable,
              .top,
              .auto,
              .forall:

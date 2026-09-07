@@ -249,8 +249,11 @@ extension CanonicalType: @MainActor CustomStringConvertible {
         case .bottom:
             "Bot"
 
-        case let .variable(identifier):
+        case let .freeVariable(identifier):
             identifier.description
+
+        case let .boundVariable(index):
+            "#\(index)"
 
         case let .function(fromType, toType):
             "fn(\(fromType.map(\.description).joined(separator: ", "))) -> \(toType)"
@@ -270,8 +273,8 @@ extension CanonicalType: @MainActor CustomStringConvertible {
         case .variant(let cases):
             "<|\(cases.map(fieldDecl).joined(separator: ", "))|>"
 
-        case .forall(let variables, let type):
-            "forall \(variables.map(\.description).joined(separator: " ")). \(type)"
+        case .forall(let variableCount, let type):
+            "forall \((0..<variableCount).map { "T\($0)" }.joined(separator: " ")). \(type)"
 
         case .reference(let type):
             "&\(type.code(in: self))"
