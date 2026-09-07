@@ -12,7 +12,7 @@ do {
 } catch let error as ParseError {
     quit(message: error.description)
 } catch let error as SemanticError {
-    print(error)
+    print(error, to: &standardError)
 } catch {
     quit(message: error.localizedDescription)
 }
@@ -21,3 +21,13 @@ private func quit(message: String) -> Never {
     print(message)
     exit(EXIT_FAILURE)
 }
+
+private struct StandardErrorOutputStream: TextOutputStream {
+    private static let handle = FileHandle.standardError
+
+    func write(_ string: String) {
+        Self.handle.write(Data(string.utf8))
+    }
+}
+
+private var standardError = StandardErrorOutputStream()
