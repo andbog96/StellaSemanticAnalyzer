@@ -289,7 +289,14 @@ extension Context {
             }
 
         case .head(let list):
-            let listType = try infer(list)
+            var listType = solver.resolve(try infer(list))
+
+            if case .auto = listType {
+                listType = try solver.unify(
+                    actual: listType,
+                    expected: .list(.auto(.new))
+                ) <!> SemanticError.unifyError(in: expression)
+            }
 
             guard case .list(let elementType) = listType else {
                 throw .notAList(actual: listType, in: copy expression)
@@ -298,7 +305,14 @@ extension Context {
             return elementType
 
         case .tail(let list):
-            let listType = try infer(list)
+            var listType = solver.resolve(try infer(list))
+
+            if case .auto = listType {
+                listType = try solver.unify(
+                    actual: listType,
+                    expected: .list(.auto(.new))
+                ) <!> SemanticError.unifyError(in: expression)
+            }
 
             guard case .list = listType else {
                 throw .notAList(actual: listType, in: copy expression)
@@ -307,7 +321,14 @@ extension Context {
             return listType
 
         case .isEmpty(let list):
-            let listType = try infer(list)
+            var listType = solver.resolve(try infer(list))
+
+            if case .auto = listType {
+                listType = try solver.unify(
+                    actual: listType,
+                    expected: .list(.auto(.new))
+                ) <!> SemanticError.unifyError(in: expression)
+            }
 
             guard case .list = listType else {
                 throw .notAList(actual: listType, in: copy expression)
