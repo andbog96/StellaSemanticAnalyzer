@@ -1,6 +1,5 @@
 import Collections
 
-@MainActor
 struct Function {
     var name: ValueName
     var typeVariables: OrderedSet<TypeName>
@@ -58,7 +57,6 @@ extension Function {
 
 typealias Functions = [ValueName: Function]
 
-@MainActor
 extension Functions {
     init(from declarations: [Declaration]) throws(CanonizeError) {
         self = Dictionary(minimumCapacity: declarations.count)

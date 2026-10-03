@@ -77,7 +77,7 @@ extension Solver {
             § OrderedDictionary.init(uniqueKeysWithValues:)
             § actualFields.map { key, actualField throws(UnifyError) in
                 guard let expectedField = expectedFields[key] else {
-                    assertionFailure()
+                    preconditionFailure()
                 }
 
                 return (key, try unify(actual: actualField, expected: expectedField))

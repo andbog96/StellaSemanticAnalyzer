@@ -1,4 +1,4 @@
-enum Declaration: Sendable {
+enum Declaration {
     case function(
         name: ValueName,
         typeVariables: [TypeName],

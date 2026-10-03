@@ -228,7 +228,7 @@ extension MemoryAddress: CustomStringConvertible {
     }
 }
 
-extension CanonicalType: @MainActor CustomStringConvertible {
+extension CanonicalType: CustomStringConvertible {
     var description: String {
         switch self {
         case .auto:

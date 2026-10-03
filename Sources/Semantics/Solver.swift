@@ -1,21 +1,15 @@
-import Foundation
+import Synchronization
 
-@MainActor
 struct TypeVariableID: Hashable {
-    private static var nextID = 0
+    private static let nextID = Atomic<Int>(0)
 
     private let value: Int
 
     static var new: Self {
-        defer {
-            nextID += 1
-        }
-
-        return Self(value: nextID)
+        Self(value: nextID.wrappingAdd(1, ordering: .relaxed).oldValue)
     }
 }
 
-@MainActor
 struct Solver {
     var substitutions = [:] as [TypeVariableID: CanonicalType]
 

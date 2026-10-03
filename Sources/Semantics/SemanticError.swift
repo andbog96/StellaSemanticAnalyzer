@@ -1,4 +1,3 @@
-@MainActor
 enum SemanticError: Error {
     case unsupported(message: String)
     case undefined(code: String)
@@ -609,7 +608,7 @@ extension SemanticError {
     }
 }
 
-extension SemanticError: @MainActor CustomStringConvertible {
+extension SemanticError: CustomStringConvertible {
     public var description: String {
         code + "\n" + message
     }

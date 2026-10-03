@@ -1,7 +1,6 @@
 import Collections
 
 extension Context {
-    @MainActor
     func match(
         _ pattern: consuming Pattern,
         against type: consuming CanonicalType

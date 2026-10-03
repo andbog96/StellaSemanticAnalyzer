@@ -1,4 +1,3 @@
-@MainActor
 struct Context {
     let extensions: Set<Extension>
     let exceptionType: CanonicalType?

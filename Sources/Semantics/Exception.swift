@@ -1,6 +1,5 @@
 import Collections
 
-@MainActor
 enum Exception {
     case type(CanonicalType)
     case variant(OrderedDictionary<VariantLabel, CanonicalType>)

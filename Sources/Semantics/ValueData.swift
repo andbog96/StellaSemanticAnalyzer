@@ -1,9 +1,8 @@
-@MainActor
 struct ValueData {
     fileprivate var data = [:] as [ValueName: CanonicalType]
 }
 
-extension ValueData: @MainActor ExpressibleByNilLiteral {
+extension ValueData: ExpressibleByNilLiteral {
     public init(nilLiteral: ()) {
         self.data = [:]
     }

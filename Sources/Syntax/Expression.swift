@@ -1,4 +1,4 @@
-enum Expression: Sendable {
+enum Expression {
     // MARK: - STLC
     case `var`(ValueName)
     indirect case abstraction(parameters: [(name: ValueName, rawType: RawType)], returnExpression: Expression)

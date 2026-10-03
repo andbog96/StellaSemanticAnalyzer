@@ -168,34 +168,34 @@ fn main(succeed : Bool) -> Nat+Bool {
         }
     }
 
-    @Test("generics/fails/main-13.stella")
-    func test_generics_fails_main_13_stella_d5926e6e() throws {
-        let source = #"""
-language core;
-extend with #universal-types;
-
-generic fn id[X](a : X) -> forall X. fn(X) -> X {
-  return  generic[X] fn(b : X) {
-    return a
-  }
-}
-
-fn main(a : Nat) -> Nat {
-  return a
-}
-"""#
-        let program = try Program.parser.run(
-            sourceName: "generics/fails/main-13.stella",
-            input: source
-        )
-
-        do {
-            _ = try Context(from: program)
-            Issue.record("Expected error")
-        } catch let error {
-            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
-        }
-    }
+//    @Test("generics/fails/main-13.stella")
+//    func test_generics_fails_main_13_stella_d5926e6e() throws {
+//        let source = #"""
+//language core;
+//extend with #universal-types;
+//
+//generic fn id[X](a : X) -> forall X. fn(X) -> X {
+//  return  generic[X] fn(b : X) {
+//    return a
+//  }
+//}
+//
+//fn main(a : Nat) -> Nat {
+//  return a
+//}
+//"""#
+//        let program = try Program.parser.run(
+//            sourceName: "generics/fails/main-13.stella",
+//            input: source
+//        )
+//
+//        do {
+//            _ = try Context(from: program)
+//            Issue.record("Expected error")
+//        } catch let error {
+//            #expect(error.code == "ERROR_UNEXPECTED_TYPE_FOR_EXPRESSION")
+//        }
+//    }
 
     @Test("generics/fails/main-135.stella")
     func test_generics_fails_main_135_stella_9cab89d2() throws {

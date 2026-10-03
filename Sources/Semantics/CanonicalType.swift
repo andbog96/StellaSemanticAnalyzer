@@ -1,7 +1,6 @@
 import Collections
 
-@MainActor
-enum CanonicalType: Sendable, Equatable, Hashable {
+enum CanonicalType: Equatable, Hashable {
     indirect case function(from: [Self], to: Self)
 
     case bool
@@ -338,7 +337,6 @@ extension CanonicalType {
 }
 
 extension Sequence<(name: ValueName, rawType: RawType)> {
-    @MainActor
     func canonized() throws(CanonizeError) -> some Sequence<(name: ValueName, type: CanonicalType)> {
         try map { name, rawType throws(CanonizeError) in
             (
